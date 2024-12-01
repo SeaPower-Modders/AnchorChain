@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.35004.147
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ChainLoader", "LibLoader\ChainLoader.csproj", "{C3E75A2B-2156-48E6-8AC7-C8DE664EB1DA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ExamplePlugin", "ExamplePlugin\ExamplePlugin.csproj", "{FE85122A-AFF6-472F-8D75-76AC71DA7D54}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C3E75A2B-2156-48E6-8AC7-C8DE664EB1DA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3E75A2B-2156-48E6-8AC7-C8DE664EB1DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3E75A2B-2156-48E6-8AC7-C8DE664EB1DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3E75A2B-2156-48E6-8AC7-C8DE664EB1DA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FE85122A-AFF6-472F-8D75-76AC71DA7D54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE85122A-AFF6-472F-8D75-76AC71DA7D54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE85122A-AFF6-472F-8D75-76AC71DA7D54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE85122A-AFF6-472F-8D75-76AC71DA7D54}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {913DA4E7-4864-421B-B2FC-DBF2C962DD9C}
+	EndGlobalSection
+EndGlobal
