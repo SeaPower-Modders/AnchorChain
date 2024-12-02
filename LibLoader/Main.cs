@@ -44,6 +44,10 @@ namespace AnchorChain
                         Type epType = (from x in loaded.GetTypes()
                                        where x.GetInterfaces().Contains(typeof(IModInterface))
                                        select x).FirstOrDefault();
+                        if (epType is null)
+                        {
+                            continue;
+                        }
                         IModInterface ep2 = (IModInterface)Activator.CreateInstance(epType);
                         ep2.TriggerEntryPoint();
                     }
