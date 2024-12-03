@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.10.35004.147
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ChainLoader", "LibLoader\ChainLoader.csproj", "{C3E75A2B-2156-48E6-8AC7-C8DE664EB1DA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AnchorChain", "AnchorChain\AnchorChain.csproj", "{C3E75A2B-2156-48E6-8AC7-C8DE664EB1DA}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ExamplePlugin", "ExamplePlugin\ExamplePlugin.csproj", "{FE85122A-AFF6-472F-8D75-76AC71DA7D54}"
 EndProject
