@@ -8,7 +8,7 @@ namespace AnchorChain
 {
 
 
-    [BepInPlugin("AC", "AnchorChain", "1.0")]
+    [BepInPlugin("AC", "AnchorChain", "0.1.0")]
     public class Plugin : BaseUnityPlugin
     {
 
@@ -18,15 +18,13 @@ namespace AnchorChain
 
             // Plugin startup logic
             int ver = 4;
-            Logger.LogInfo($"Plugin is loaded! Ver 0.0.0.{ver}");
-            Debug.LogWarning($"Plugin is loaded! Ver 0.0.0.{ver}");
+            Logger.LogInfo($"AnchorChain V{ver} loading!");
             //var harmony = new Harmony("ac.lib.harmony.product");
             //harmony.PatchAll();
 
             foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo))
             {
                 string possiblepath = Path.Combine(dir.FullName);
-                Debug.LogWarning($"Looking for dll in {possiblepath}"); // For example, just print them
 
                 string[] dllFiles = Directory.GetFiles(possiblepath, "*.dll", SearchOption.AllDirectories);
 
@@ -34,12 +32,11 @@ namespace AnchorChain
                 foreach (string asmPath in dllFiles)
                 {
                     // Your logic to handle the found DLLs
-                    Debug.LogWarning($"loaded dll {asmPath}"); // For example, just print them
                     List<Assembly> _loadedAssemblies = new List<Assembly>();
                     try
                     {
                         Assembly loaded = Assembly.LoadFile(asmPath);
-                        Debug.Log("Loaded assembly " + loaded.FullName);
+                        Logger.LogInfo("Loaded assembly " + loaded.FullName);
                         _loadedAssemblies.Add(loaded);
                         Type epType = (from x in loaded.GetTypes()
                                        where x.GetInterfaces().Contains(typeof(IModInterface))
@@ -53,7 +50,7 @@ namespace AnchorChain
                     }
                     catch (Exception ex)
                     {
-                        Debug.LogError("Error loading assembly at path " + asmPath + ": " + ex);
+                        Logger.LogWarning("Error loading assembly at path " + asmPath + ": " + ex);
                     }
                 }
             }
