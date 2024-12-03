@@ -34,9 +34,11 @@ namespace AnchorChain
                             ACPlugin pluginData = (ACPlugin)Attribute.GetCustomAttribute(plugin, typeof(ACPlugin));
                             if (pluginData is null) continue;
 
-                            // Set dependencies
+                            // Set dependencies and incompatibilities
                             pluginData.Dependencies =
                                 new(Attribute.GetCustomAttributes(plugin, typeof(ACDependency)).Cast<ACDependency>() ?? []);
+                            pluginData.Incompatibilities =
+                                new(Attribute.GetCustomAttributes(plugin, typeof(ACIncompatibility)).Cast<ACIncompatibility>() ?? []);
 
                             // Ensure all preloads and postloads are dependencies
                             pluginData.Dependencies.UnionWith(pluginData.Before.Select(x => new ACDependency(x, null, null)));
@@ -57,16 +59,25 @@ namespace AnchorChain
 
             // Ensure all dependencies are met, and remove plugins missing dependencies
             while (true) {
-                List<ACPlugin> toRemove = new();
+                HashSet<ACPlugin> toRemove = new();
 
-                foreach (ACPlugin pluginData in recognizedPlugins.Keys) {
+                foreach ((ACPlugin pluginData, IModInterface _) in recognizedPlugins.Values) {
                     foreach (ACDependency dependency in pluginData.Dependencies) {
                         if (!recognizedPlugins.ContainsKey(dependency.GUID)) {
                             Logger.LogWarning(
-                                $"Missing dependency \"{dependency.GUID}\" for \"{pluginData.Name}\" ({pluginData.GUID}); it will not be loaded");
+                                $"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); missing dependency \"{dependency.GUID}\"");
                             toRemove.Add(pluginData);
                             break;
                         }
+                    }
+
+                    foreach (ACIncompatibility incompatibility in pluginData.Incompatibilities) {
+                        if (recognizedPlugins.ContainsKey(incompatibility.GUID)) {
+                            Logger.LogWarning(
+                                $"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); detected incompatible mod \"{incompatibility.GUID}\"");
+                        }
+                        toRemove.Add(pluginData);
+                        break;
                     }
                 }
 
@@ -79,10 +90,14 @@ namespace AnchorChain
                 }
             }
 
-            // Cast all preloads to postloads
+            // Cast all preloads to postloads and postloads to preloads
             foreach ((ACPlugin pluginData, IModInterface _) in recognizedPlugins.Values) {
                 foreach (string plugin in pluginData.Before) {
                     recognizedPlugins[plugin].Item1.After.Add(pluginData.GUID);
+                }
+
+                foreach (string plugin in pluginData.After) {
+                    recognizedPlugins[plugin].Item1.Before.Add(pluginData.GUID);
                 }
             }
 
@@ -102,29 +117,31 @@ namespace AnchorChain
             HashSet<string> alreadyLoaded = new();
 
             while (true) {
+                if (currentLevel.Count == 0) { break; }
+
                 bool loadedOne = false;
+                HashSet<string> toLoad = new();
                 foreach (string guid in currentLevel) {
                     (ACPlugin pluginData, IModInterface plugin) = recognizedPlugins[guid];
                     if (pluginData.After.IsSubsetOf(alreadyLoaded)) {
                         try {
                             plugin.TriggerEntryPoint();
                             Logger.LogInfo($"Loaded plugin {pluginData.Name} ({pluginData.GUID})");
-                            currentLevel.UnionWith(pluginData.Before);
-                            currentLevel.Remove(pluginData.GUID);
+                            toLoad.UnionWith(pluginData.Before);
+                            alreadyLoaded.Add(pluginData.GUID);
                             loadedOne = true;
                         }
                         catch (Exception e) {
-                            // TODO: If no plugins depend on failed load then continue
-                            Logger.LogError($"Aborting chainload; error loading plugin {pluginData.Name} ({pluginData.GUID}): {e}");
-                            return;
+                            Logger.LogError($"Error loading plugin {pluginData.Name} ({pluginData.GUID}): {e}");
                         }
                     }
                 }
 
-                if (currentLevel.Count == 0) { break; }
+                currentLevel.UnionWith(toLoad);
+                currentLevel.RemoveWhere(x => alreadyLoaded.Contains(x));
 
                 if (!loadedOne) {
-                    Logger.LogError($"Aborting chainload; unable to load any more plugins: {alreadyLoaded}");
+                    Logger.LogError($"Aborting chainload; unable to load any more plugins: {alreadyLoaded}, {currentLevel}");
                 }
             }
 
@@ -134,8 +151,8 @@ namespace AnchorChain
 
         private HashSet<ACPlugin> FindAllPostLoads(ACPlugin plugin, Dictionary<string, (ACPlugin, IModInterface)> recognizedPlugins, HashSet<ACPlugin> prev)
         {
-            HashSet<ACPlugin> cachedPostLoads = _postLoadsCache[plugin.GUID];
-            if (cachedPostLoads != null) {
+            HashSet<ACPlugin> cachedPostLoads = new();
+            if (_postLoadsCache.TryGetValue(plugin.GUID, out cachedPostLoads)) {
                 return cachedPostLoads;
             }
 
@@ -143,8 +160,8 @@ namespace AnchorChain
 
             HashSet<ACPlugin> allPostLoads = new();
 
-            foreach (string GUID in plugin.After) {
-                allPostLoads.UnionWith(FindAllPostLoads(recognizedPlugins[GUID].Item1, recognizedPlugins, prev));
+            foreach (string guid in plugin.After) {
+                allPostLoads.UnionWith(FindAllPostLoads(recognizedPlugins[guid].Item1, recognizedPlugins, prev));
             }
 
             _postLoadsCache[plugin.GUID] = allPostLoads;
@@ -163,9 +180,7 @@ namespace AnchorChain
         [NotNull] public HashSet<string> Before { get; } = before is null ? [] : [..before];
         [NotNull] public HashSet<string> After { get; } = after is null ? [] : [..after];
         [NotNull] public HashSet<ACDependency> Dependencies { get; internal set; } = new();
-
-
-        public static explicit operator ACPlugin(string guid) => new ACPlugin(guid, null, null);
+        [NotNull] public HashSet<ACIncompatibility> Incompatibilities { get; internal set;  } = new();
 
 
         public bool Equals(ACPlugin other) => other is not null && GUID == other.GUID;
@@ -188,6 +203,13 @@ namespace AnchorChain
 
         public bool Contains([NotNull] Version version) =>
             (MinVersion is null || version.CompareTo(MinVersion) >= 0) && (MaxVersion is null || version.CompareTo(MaxVersion) <= 0);
+    }
+
+
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+    public class ACIncompatibility([NotNull] string guid) : Attribute
+    {
+        public string GUID { get; } = guid;
     }
 
 
