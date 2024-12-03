@@ -8,17 +8,12 @@ namespace AnchorChain
 {
 
 
-    [BepInPlugin("AC", "AnchorChain", "0.1.0")]
+    [BepInPlugin("io.github.seapower-modders.anchorchain", "AnchorChain", "0.1.0")]
     public class Plugin : BaseUnityPlugin
     {
-
         private void Awake()
         {
 
-
-            // Plugin startup logic
-            int ver = 4;
-            Logger.LogInfo($"AnchorChain V{ver} loading!");
             //var harmony = new Harmony("ac.lib.harmony.product");
             //harmony.PatchAll();
 
@@ -27,12 +22,12 @@ namespace AnchorChain
                 string possiblepath = Path.Combine(dir.FullName);
 
                 string[] dllFiles = Directory.GetFiles(possiblepath, "*.dll", SearchOption.AllDirectories);
+                List<Assembly> _loadedAssemblies = new List<Assembly>();
 
                 // Process the found .dll files
                 foreach (string asmPath in dllFiles)
                 {
-                    // Your logic to handle the found DLLs
-                    List<Assembly> _loadedAssemblies = new List<Assembly>();
+
                     try
                     {
                         Assembly loaded = Assembly.LoadFile(asmPath);
@@ -55,8 +50,7 @@ namespace AnchorChain
                 }
             }
 
-
-
+            Logger.LogInfo($"Loaded AnchorChain V{( (BepInPlugin) Attribute.GetCustomAttribute(typeof(Plugin), typeof(BepInPlugin)) ).Version}!");
         }
 
     }
