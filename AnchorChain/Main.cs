@@ -7,12 +7,12 @@ namespace AnchorChain
 {
 
 
-    [BepInPlugin("io.github.seapower-modders.anchorchain", "AnchorChain", "0.1.0")]
-    public class Plugin : BaseUnityPlugin
+    [BepInPlugin("io.github.seapower-modders.anchorchain", "AnchorChain", "0.2.0")]
+    public class AnchorChainLoader : BaseUnityPlugin, IModInterface
     {
         private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
 
-        private void Awake()
+        public void TriggerEntryPoint()
         {
             Dictionary<string, (ACPlugin, IModInterface)> recognizedPlugins = new();
 
@@ -45,8 +45,7 @@ namespace AnchorChain
                             pluginData.Dependencies.UnionWith(pluginData.After.Select(x => new ACDependency(x, null, null)));
 
                             if (!recognizedPlugins.TryAdd(pluginData.GUID, (pluginData, (IModInterface)Activator.CreateInstance(plugin)))) {
-                                Logger.LogWarning(
-                                    $"Attempted to load a duplicate plugin: {pluginData.Name} ({pluginData.GUID})");
+                                Logger.LogWarning($"Attempted to load a duplicate plugin: {pluginData.Name} ({pluginData.GUID})");
                                 continue;
                             }
                         }
@@ -145,7 +144,7 @@ namespace AnchorChain
                 }
             }
 
-            Logger.LogInfo($"Loaded AnchorChain V{((BepInPlugin)Attribute.GetCustomAttribute(typeof(Plugin), typeof(BepInPlugin))).Version}!");
+            Logger.LogInfo($"Loaded AnchorChain V{((BepInPlugin)Attribute.GetCustomAttribute(typeof(AnchorChainLoader), typeof(BepInPlugin))).Version}!");
         }
 
 
