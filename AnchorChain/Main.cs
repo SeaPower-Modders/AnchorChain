@@ -5,14 +5,12 @@ using System.Reflection;
 
 namespace AnchorChain
 {
-
-
-    [BepInPlugin("io.github.seapower-modders.anchorchain", "AnchorChain", "0.2.0")]
-    public class AnchorChainLoader : BaseUnityPlugin, IModInterface
+    [BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "0.2.0")]
+    public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
     {
         private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
 
-        public void TriggerEntryPoint()
+        public void LoadPlugins()
         {
             Dictionary<string, (ACPlugin, IModInterface)> recognizedPlugins = new();
 
@@ -65,6 +63,12 @@ namespace AnchorChain
                         if (!recognizedPlugins.ContainsKey(dependency.GUID)) {
                             Logger.LogWarning(
                                 $"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); missing dependency \"{dependency.GUID}\"");
+                            toRemove.Add(pluginData);
+                            break;
+                        }
+                        if (!dependency.Contains(recognizedPlugins[dependency.GUID].Item1.Version)) {
+                            Logger.LogWarning(
+                                $"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); outdated dependency \"{dependency.GUID}\"");
                             toRemove.Add(pluginData);
                             break;
                         }

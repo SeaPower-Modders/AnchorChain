@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\AnchorChain.Preloader\AnchorChain.Preloader.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="0Harmony">
       <HintPath>..\Dll\0Harmony.dll</HintPath>
       <Private>False</Private>
