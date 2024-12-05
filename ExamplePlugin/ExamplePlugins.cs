@@ -40,7 +40,7 @@ namespace ExamplePlugin
     }
 
     /// <summary>
-    /// This plugin requires Plugin 1 at a minimum version of 0.3.0, and a maximum version of 1.0. If Plugin 1 is not present or is misversioned, it will not load.
+    /// This plugin requires Plugin 1 at a minimum version of 0.3.0, and a maximum version of 1.0. If Plugin 1 is not present or is mis-versioned, it will not load.
     /// It will also load in the first pass of plugin loading for the same reason as Plugin 3.
     /// </summary>
     [ACPlugin("your-name.plugin-4", "Plugin 4", "1.3.2")]
