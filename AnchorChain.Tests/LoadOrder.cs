@@ -11,7 +11,7 @@ namespace AnchorChain.Tests;
 /// Info plugin for test group
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainLOInfo", "LO Info", "1.0")]
-public class LoadOrderInfo: IModInterface
+public class LoadOrderInfo: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -20,7 +20,7 @@ public class LoadOrderInfo: IModInterface
 }
 
 [ACPlugin("io.github.seapower-modders.AnchorChainLO1", "LO 1", "1.0", ["io.github.seapower-modders.AnchorChainLO4"])]
-public class LoadOrder1: IModInterface
+public class LoadOrder1: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -29,7 +29,7 @@ public class LoadOrder1: IModInterface
 }
 
 [ACPlugin("io.github.seapower-modders.AnchorChainLO2", "LO 2", "1.0", ["io.github.seapower-modders.AnchorChainLO4", "io.github.seapower-modders.AnchorChainLO5"])]
-public class LoadOrder2: IModInterface
+public class LoadOrder2: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -38,7 +38,7 @@ public class LoadOrder2: IModInterface
 }
 
 [ACPlugin("io.github.seapower-modders.AnchorChainLO3", "LO 3", "1.0")]
-public class LoadOrder3: IModInterface
+public class LoadOrder3: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -47,7 +47,7 @@ public class LoadOrder3: IModInterface
 }
 
 [ACPlugin("io.github.seapower-modders.AnchorChainLO4", "LO 4", "1.0", ["io.github.seapower-modders.AnchorChainLO7"], ["io.github.seapower-modders.AnchorChainLO3"])]
-public class LoadOrder4: IModInterface
+public class LoadOrder4: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -56,7 +56,7 @@ public class LoadOrder4: IModInterface
 }
 
 [ACPlugin("io.github.seapower-modders.AnchorChainLO5", "LO 5", "1.0", ["io.github.seapower-modders.AnchorChainLO7", "io.github.seapower-modders.AnchorChainLO8"], ["io.github.seapower-modders.AnchorChainLO2"])]
-public class LoadOrder5: IModInterface
+public class LoadOrder5: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -65,7 +65,7 @@ public class LoadOrder5: IModInterface
 }
 
 [ACPlugin("io.github.seapower-modders.AnchorChainLO6", "LO 6", "1.0", ["io.github.seapower-modders.AnchorChainLO9"], ["io.github.seapower-modders.AnchorChainLO3"])]
-public class LoadOrder6: IModInterface
+public class LoadOrder6: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -74,7 +74,7 @@ public class LoadOrder6: IModInterface
 }
 
 [ACPlugin("io.github.seapower-modders.AnchorChainLO7", "LO 7", "1.0")]
-public class LoadOrder7: IModInterface
+public class LoadOrder7: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -83,7 +83,7 @@ public class LoadOrder7: IModInterface
 }
 
 [ACPlugin("io.github.seapower-modders.AnchorChainLO8", "LO 8", "1.0")]
-public class LoadOrder8: IModInterface
+public class LoadOrder8: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -92,7 +92,7 @@ public class LoadOrder8: IModInterface
 }
 
 [ACPlugin("io.github.seapower-modders.AnchorChainLO9", "LO 9", "1.0", [], ["io.github.seapower-modders.AnchorChainLO6"])]
-public class LoadOrder9: IModInterface
+public class LoadOrder9: IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{

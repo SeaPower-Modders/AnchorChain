@@ -11,7 +11,7 @@ namespace AnchorChain.Tests;
 /// Info plugin for test group
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainIDInfo", "ID Info", "1.0")]
-public class ImpliedDependencyInfo : IModInterface
+public class ImpliedDependencyInfo : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -23,7 +23,7 @@ public class ImpliedDependencyInfo : IModInterface
 /// THE implied dependency
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainID1", "ID 1", "1.0")]
-public class ImpliedDependency1 : IModInterface
+public class ImpliedDependency1 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -35,7 +35,7 @@ public class ImpliedDependency1 : IModInterface
 /// Test preload plugin
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainID2", "ID 2", "1.0", ["io.github.seapower-modders.AnchorChainID1"])]
-public class ImpliedDependency2 : IModInterface
+public class ImpliedDependency2 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -47,7 +47,7 @@ public class ImpliedDependency2 : IModInterface
 /// Test postload plugin
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainID3", "ID 3", "1.0", [], ["io.github.seapower-modders.AnchorChainID1"])]
-public class ImpliedDependency3 : IModInterface
+public class ImpliedDependency3 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -59,7 +59,7 @@ public class ImpliedDependency3 : IModInterface
 /// Test missing preload plugin
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainID4", "ID 4", "1.0", ["io.github.seapower-modders.does-not-exist"])]
-public class ImpliedDependency4 : IModInterface
+public class ImpliedDependency4 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -71,7 +71,7 @@ public class ImpliedDependency4 : IModInterface
 /// Test missing postload plugin
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainID5", "ID 5", "1.0", [], ["io.github.seapower-modders.does-not-exist"])]
-public class ImpliedDependency5 : IModInterface
+public class ImpliedDependency5 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{

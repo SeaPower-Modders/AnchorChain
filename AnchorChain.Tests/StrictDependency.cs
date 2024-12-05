@@ -12,7 +12,7 @@ namespace AnchorChain.Tests;
 /// Info plugin for test group
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSDInfo", "SD Info", "1.0")]
-public class StrictDependencyInfo : IModInterface
+public class StrictDependencyInfo : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -25,7 +25,7 @@ public class StrictDependencyInfo : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD1", "SD 1", "1.0")]
 [ACDependency("io.github.seapower-modders.does-not-exist", "1.0", "1.0")]
-public class Missing : IModInterface
+public class Missing : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -38,7 +38,7 @@ public class Missing : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD2", "MD 2", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD4", "1.1", "1.2")]
-public class StrictDependency2 : IModInterface
+public class StrictDependency2 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -51,7 +51,7 @@ public class StrictDependency2 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD3", "SD 3", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD4", "0.9.0", "0.9.9")]
-public class StrictDependency3 : IModInterface
+public class StrictDependency3 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -63,7 +63,7 @@ public class StrictDependency3 : IModInterface
 /// THE dependency
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD4", "SD 4", "1.0")]
-public class StrictDependency4 : IModInterface
+public class StrictDependency4 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -76,7 +76,7 @@ public class StrictDependency4 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD5", "SD 5", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD4", "0.9.0", null)]
-public class StrictDependency5 : IModInterface
+public class StrictDependency5 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -89,7 +89,7 @@ public class StrictDependency5 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD6", "SD 6", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD4", null, "1.0.0")]
-public class StrictDependency6 : IModInterface
+public class StrictDependency6 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -102,7 +102,7 @@ public class StrictDependency6 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD7", "SD 7", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD4", null, null)]
-public class StrictDependency7 : IModInterface
+public class StrictDependency7 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -115,7 +115,7 @@ public class StrictDependency7 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD8", "SD 8", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD4", "1.1.0", null)]
-public class StrictDependency8 : IModInterface
+public class StrictDependency8 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -128,7 +128,7 @@ public class StrictDependency8 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD9", "SD 9", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD4", null, "0.9.9")]
-public class StrictDependency9 : IModInterface
+public class StrictDependency9 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -141,7 +141,7 @@ public class StrictDependency9 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD10", "SD 10", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD11", null, null)]
-public class StrictDependency10 : IModInterface
+public class StrictDependency10 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -154,7 +154,7 @@ public class StrictDependency10 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD11", "SD 11", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD10", null, null)]
-public class StrictDependency11 : IModInterface
+public class StrictDependency11 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -167,7 +167,7 @@ public class StrictDependency11 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD12", "SD 12", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD4", "1.0", "1.0")]
-public class StrictDependency12 : IModInterface
+public class StrictDependency12 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{
@@ -180,7 +180,7 @@ public class StrictDependency12 : IModInterface
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD13", "SD 12", "1.0")]
 [ACDependency("io.github.seapower-modders.AnchorChainSD4", "1.0.0", "1.0.0")]
-public class StrictDependency13 : IModInterface
+public class StrictDependency13 : IAnchorChainMod
 {
 	public void TriggerEntryPoint()
 	{

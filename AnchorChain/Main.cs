@@ -5,14 +5,14 @@ using System.Reflection;
 
 namespace AnchorChain
 {
-    [BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "0.2.0")]
+    [BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "0.3.0")]
     public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
     {
         private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
 
         public void LoadPlugins()
         {
-            Dictionary<string, (ACPlugin, IModInterface)> recognizedPlugins = new();
+            Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
 
             // First pass, registering plugin classes, dependencies, and plugins to preload
             foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo)) {
@@ -26,7 +26,7 @@ namespace AnchorChain
                         Logger.LogInfo("Loaded assembly " + loaded.FullName);
 
                         foreach (Type plugin in (from x in loaded.GetExportedTypes()
-                                     where x.GetInterfaces().Contains(typeof(IModInterface))
+                                     where x.GetInterfaces().Contains(typeof(IAnchorChainMod))
                                      select x)) {
                             // All valid plugins should be annotated with ACPlugin
                             ACPlugin pluginData = (ACPlugin)Attribute.GetCustomAttribute(plugin, typeof(ACPlugin));
@@ -42,7 +42,7 @@ namespace AnchorChain
                             pluginData.Dependencies.UnionWith(pluginData.Before.Select(x => new ACDependency(x, null, null)));
                             pluginData.Dependencies.UnionWith(pluginData.After.Select(x => new ACDependency(x, null, null)));
 
-                            if (!recognizedPlugins.TryAdd(pluginData.GUID, (pluginData, (IModInterface)Activator.CreateInstance(plugin)))) {
+                            if (!recognizedPlugins.TryAdd(pluginData.GUID, (pluginData, (IAnchorChainMod)Activator.CreateInstance(plugin)))) {
                                 Logger.LogWarning($"Attempted to load a duplicate plugin: {pluginData.Name} ({pluginData.GUID})");
                                 continue;
                             }
@@ -58,7 +58,7 @@ namespace AnchorChain
             while (true) {
                 HashSet<ACPlugin> toRemove = new();
 
-                foreach ((ACPlugin pluginData, IModInterface _) in recognizedPlugins.Values) {
+                foreach ((ACPlugin pluginData, IAnchorChainMod _) in recognizedPlugins.Values) {
                     foreach (ACDependency dependency in pluginData.Dependencies) {
                         if (!recognizedPlugins.ContainsKey(dependency.GUID)) {
                             Logger.LogWarning(
@@ -94,7 +94,7 @@ namespace AnchorChain
             }
 
             // Cast all preloads to postloads and postloads to preloads
-            foreach ((ACPlugin pluginData, IModInterface _) in recognizedPlugins.Values) {
+            foreach ((ACPlugin pluginData, IAnchorChainMod _) in recognizedPlugins.Values) {
                 foreach (string plugin in pluginData.Before) {
                     recognizedPlugins[plugin].Item1.After.Add(pluginData.GUID);
                 }
@@ -106,7 +106,7 @@ namespace AnchorChain
 
             // Screen for circular post loads
             bool circularLoad = false;
-            foreach ((ACPlugin pluginData, IModInterface _) in recognizedPlugins.Values) {
+            foreach ((ACPlugin pluginData, IAnchorChainMod _) in recognizedPlugins.Values) {
                 HashSet<ACPlugin> postLoads = FindAllPostLoads(pluginData, recognizedPlugins, new());
                 if (postLoads.Contains(pluginData)) {
                     Logger.LogError($"Aborting chainload; circular load order chain detected: {postLoads}");
@@ -125,7 +125,7 @@ namespace AnchorChain
                 bool loadedOne = false;
                 HashSet<string> toLoad = new();
                 foreach (string guid in currentLevel) {
-                    (ACPlugin pluginData, IModInterface plugin) = recognizedPlugins[guid];
+                    (ACPlugin pluginData, IAnchorChainMod plugin) = recognizedPlugins[guid];
                     if (pluginData.After.IsSubsetOf(alreadyLoaded)) {
                         try {
                             plugin.TriggerEntryPoint();
@@ -152,7 +152,7 @@ namespace AnchorChain
         }
 
 
-        private HashSet<ACPlugin> FindAllPostLoads(ACPlugin plugin, Dictionary<string, (ACPlugin, IModInterface)> recognizedPlugins, HashSet<ACPlugin> prev)
+        private HashSet<ACPlugin> FindAllPostLoads(ACPlugin plugin, Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins, HashSet<ACPlugin> prev)
         {
             HashSet<ACPlugin> cachedPostLoads = new();
             if (_postLoadsCache.TryGetValue(plugin.GUID, out cachedPostLoads)) {
@@ -216,7 +216,7 @@ namespace AnchorChain
     }
 
 
-    public interface IModInterface
+    public interface IAnchorChainMod
     {
         public void TriggerEntryPoint();
     }
