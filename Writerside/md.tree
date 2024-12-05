@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE instance-profile
+        SYSTEM "https://resources.jetbrains.com/writerside/1.0/product-profile.dtd">
+
+<instance-profile id="md"
+                 name="Modder Documentation"
+                 start-page="Getting-Started.md">
+
+    <toc-element topic="Writing-A-Basic-Plugin.md"/>
+    <toc-element topic="Getting-Started.md"/>
+</instance-profile>
