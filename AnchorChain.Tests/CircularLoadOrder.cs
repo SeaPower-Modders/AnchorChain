@@ -1,4 +1,4 @@
-﻿// Comment or uncomment following line to activate CLO tests
+﻿// Uncomment following line to activate CLO tests
 ///#define CLO
 #if CLO
 

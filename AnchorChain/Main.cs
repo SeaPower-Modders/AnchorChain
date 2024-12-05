@@ -68,7 +68,7 @@ namespace AnchorChain
                         }
                         if (!dependency.Contains(recognizedPlugins[dependency.GUID].Item1.Version)) {
                             Logger.LogWarning(
-                                $"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); outdated dependency \"{dependency.GUID}\"");
+                                $"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); mis-versioned dependency \"{dependency.GUID}\"");
                             toRemove.Add(pluginData);
                             break;
                         }
@@ -205,7 +205,7 @@ namespace AnchorChain
 
 
         public bool Contains([NotNull] Version version) =>
-            (MinVersion is null || version.CompareTo(MinVersion) >= 0) && (MaxVersion is null || version.CompareTo(MaxVersion) <= 0);
+            (MinVersion is null || version >= MinVersion) && (MaxVersion is null || version <= MaxVersion);
     }
 
 

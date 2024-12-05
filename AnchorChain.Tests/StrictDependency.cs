@@ -1,4 +1,4 @@
-﻿// Comment or uncomment following line to activate SD tests
+﻿// Uncomment following line to activate SD tests
 #define SD
 #if SD
 
@@ -16,7 +16,7 @@ public class StrictDependencyInfo : IModInterface
 {
 	public void TriggerEntryPoint()
 	{
-		Debug.LogWarning("SD 4, SD 5, SD 6, SD 7, SD 10, and SD 11 should load");
+		Debug.LogWarning("SD 4, SD 5, SD 6, SD 7, SD 10, SD 11, and SD 12 should load");
 	}
 }
 
@@ -75,7 +75,7 @@ public class StrictDependency4 : IModInterface
 /// Open max dependency
 /// </summary>
 [ACPlugin("io.github.seapower-modders.AnchorChainSD5", "SD 5", "1.0")]
-[ACDependency("io.github.seapower-modders.AnchorChainSD4", "1.0.0", null)]
+[ACDependency("io.github.seapower-modders.AnchorChainSD4", "0.9.0", null)]
 public class StrictDependency5 : IModInterface
 {
 	public void TriggerEntryPoint()
@@ -159,6 +159,32 @@ public class StrictDependency11 : IModInterface
 	public void TriggerEntryPoint()
 	{
 		Debug.Log("SD 11 Loaded");
+	}
+}
+
+/// <summary>
+/// Exact dependency
+/// </summary>
+[ACPlugin("io.github.seapower-modders.AnchorChainSD12", "SD 12", "1.0")]
+[ACDependency("io.github.seapower-modders.AnchorChainSD4", "1.0", "1.0")]
+public class StrictDependency12 : IModInterface
+{
+	public void TriggerEntryPoint()
+	{
+		Debug.Log("SD 12 Loaded");
+	}
+}
+
+/// <summary>
+/// Over-specific dependency
+/// </summary>
+[ACPlugin("io.github.seapower-modders.AnchorChainSD13", "SD 12", "1.0")]
+[ACDependency("io.github.seapower-modders.AnchorChainSD4", "1.0.0", "1.0.0")]
+public class StrictDependency13 : IModInterface
+{
+	public void TriggerEntryPoint()
+	{
+		Debug.Log("SD 13 Loaded");
 	}
 }
 
