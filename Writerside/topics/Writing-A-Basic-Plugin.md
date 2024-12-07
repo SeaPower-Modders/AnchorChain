@@ -1,12 +1,18 @@
+<link-summary>How to write a basic Anchor Chain plugin</link-summary>
+
 # Writing A Basic Plugin
+
+<note>
+This guide assumes that you have a fundamental grasp on the C# language and the basic principles of the Unity Game Engine.
+If you don't understand the principles of Classes, Namespaces, Interfaces, and Inheritance, then we recommend you learn more C# before beginning (or at least prepare yourself for a challenge).
+</note>
 
 ## Before You Begin
 
-This guide assumes that you have a fundamental grasp on the C# language and the basic principles of the Unity Game Engine.
-If you don't understand the principles of Classes, Namespaces, Interfaces, and Inheritance, then we recommend you learn more C# before beginning (or at least prepare yourself for a challenge).
-
 The plugin which we will guide you to create in this guide will only teach you how to interact with AnchorChain.
-This section isn't about building mods, just loading one via AnchorChain.
+This guide isn't about building mods, just loading one via AnchorChain.
+If you would like to learn how to build a mod, then we recommend looking to the 
+<a href="https://harmony.pardeike.net/">Harmony documentation</a>.
 
 ## What Anchor Chain Requires
 As of writing, there is no nuget package for an Anchor Chain plugin, so you'll have to do things the old-fashioned way.

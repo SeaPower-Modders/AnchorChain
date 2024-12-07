@@ -8,8 +8,10 @@
     <toc-element topic="Getting-Started.md"/>
     <toc-element topic="user-guide.md">
         <toc-element topic="Install-Anchor-Chain.md"/>
+        <toc-element topic="Installing-Mods.md"/>
     </toc-element>
     <toc-element topic="Modder-Documentation.md">
         <toc-element topic="Writing-A-Basic-Plugin.md"/>
+        <toc-element topic="Integrating-Multiple-Plugins.md"/>
     </toc-element>
 </instance-profile>

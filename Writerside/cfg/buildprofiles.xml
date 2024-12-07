@@ -9,4 +9,8 @@
         </variables>
     </build-profile>
 
+    <shortcuts>
+        <src>keymap.xml</src>
+        <layout name="Windows" display-name="Windows"/>
+    </shortcuts>
 </buildprofiles>
