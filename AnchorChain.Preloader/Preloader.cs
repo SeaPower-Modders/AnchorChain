@@ -5,7 +5,7 @@ using System.Reflection;
 namespace AnchorChain.Preloader;
 
 
-[BepInPlugin("io.github.seapower_modders.anchorchain_preloader", "AnchorChain Preloader", "0.1.0")]
+[BepInPlugin("io.github.seapower_modders.anchorchain_preloader", "AnchorChain Preloader", "1.0.0")]
 public class AnchorChainPreloader: BaseUnityPlugin
 {
 	private void Awake()
