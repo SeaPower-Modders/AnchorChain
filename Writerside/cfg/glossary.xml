@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE terms SYSTEM "https://resources.jetbrains.com/writerside/1.0/glossary.dtd">
+<terms>
+    <term name="Attribute">
+        Attributes are C#'s way of adding information to types at compile-time.
+    </term>
+    <term name="Chainloader">
+        A chainloader is a plugin that loads other plugins.
+    </term>
+</terms>
