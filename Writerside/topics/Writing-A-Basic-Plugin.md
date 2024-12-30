@@ -25,7 +25,7 @@ The <code>ACPlugin</code> <tooltip term="Attribute">attribute</tooltip> is how A
 It should be applied to any classes that you want to be loaded as a plugin.
 <warning><code>guid</code> must never be null. This will cause AnchorChain to fail loading your plugin.</warning>
 
-<br></br>
+<br/>
 
 <code-block lang="C#">
 public class ACPlugin([NotNull] string guid, string name, string version, string[] before, string[] after)
@@ -43,7 +43,7 @@ For modders, this usually comes in the form of your <a href="https://tomcam.gith
 For example, AnchorChain's <code>GUID</code> is <code>io.github.seapower_modders.anchorchain</code>.
 </step>
 
-<br></br>
+<br/>
 
 <step>
 <code>string name</code> 
@@ -52,7 +52,7 @@ The name of your plugin is completely arbitrary.
 AnchorChain will only use it in logging and error messages, and it will always be paired with the plugin's <code>guid</code>.
 </step>
 
-<br></br>
+<br/>
 
 <step>
 <code>string version</code> 
@@ -62,7 +62,7 @@ Must be in a format acceptable by <code lang="C#">System.Version</code>.
 AnchorChain recommends that you adhere to the convention of <a href="https://semver.org/">SemVer</a>.
 </step>
 
-<br></br>
+<br/>
 
 <step>
 <code>string[] before</code> 
@@ -73,7 +73,7 @@ Do not use this option without reason, as if AnchorChain detects a conflict betw
 The plugins in <code>before</code> should be identified by their GUIDs.
 </step>
 
-<br></br>
+<br/>
 
 <step>
 <code>string[] after</code> 
@@ -89,7 +89,7 @@ The plugins in <code>after</code> should be identified by their GUIDs.
 
 <tab title="The IAnchorChainMod Interface" id="IACMod">
 <code>IAnchorChainMod</code> is a simple interface, only consisting of a single method.
-<br></br>
+<br/>
 <code-block lang="C#">
 public interface IAnchorChainMod { public void TriggerEntryPoint(); }
 </code-block> 
@@ -115,7 +115,7 @@ The dll that you should use is available on our <a href="https://github.com/SeaP
 Create your plugin's namespace. We recommend choosing a unique name to avoid collisions with other mods.
 </step>
 
-<br></br>
+<br/>
 Your file should be similar to the following:
 
 <code-block lang="C#">
@@ -135,7 +135,7 @@ Add your <code>guid</code>, <code>name</code>, and <code>version</code> string t
 Create the <code>public void TriggerEntryPoint</code> function.
 </step>
 
-<br></br>
+<br/>
 Now, your code should look something like this:
 
 <code-block lang="C#">
