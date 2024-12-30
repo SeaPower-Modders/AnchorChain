@@ -46,8 +46,8 @@ This is what allows us to distribute the bulk of Anchor Chain via the Steam Work
 
 <procedure title="How To Install Anchor Chain">
 <step>
-Use the following link to open <!--suppress XmlUnresolvedReference -->
-<a href="steam://openurl/https://steamcommunity.com/sharedfiles/filedetails/?id=3380210757">Anchor Chain's Steam Workshop page</a>.
+<!--suppress XmlUnresolvedReference -->
+Use the following link to open <a href="steam://openurl/https://steamcommunity.com/sharedfiles/filedetails/?id=3380210757">Anchor Chain's Steam Workshop page</a>.
 <note>
 Your browser will likely ask your permission to open "steam" links, this just allows us to open the workshop page on your steam application rather than in your browser.
 </note>
