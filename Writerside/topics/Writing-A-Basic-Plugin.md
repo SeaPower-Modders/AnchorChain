@@ -15,6 +15,8 @@ If you would like to learn how to build a mod, then we recommend looking to the
 <a href="https://harmony.pardeike.net/">Harmony documentation</a>.
 
 ## What Anchor Chain Requires
+<link-summary>ACPlugin And IAnchorChainMod Documentation</link-summary>
+
 As of writing, there is no nuget package for an Anchor Chain plugin, so you'll have to do things the old-fashioned way.
 Thankfully, AC plugins are fairly simple.
 There are two things that define a plugin:
