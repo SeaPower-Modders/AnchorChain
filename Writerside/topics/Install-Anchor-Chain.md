@@ -25,7 +25,7 @@ You can find the most recent release in the right hand sidebar underneath "Relea
 Unzip <code>ACPreloader.zip</code> into a folder within your Downloads folder.
 </step>
 <step>
-Find the <code>winhttp.dll</code> file within the unzipped folder, and use <shortcut key="$Copy"/> or <shortcut key="$Cut"/> to copy or cut everything within that folder.
+Find the <code>winhttp.dll</code> file within the unzipped folder, and use <shortcut key="$Copy"/> or <shortcut key="$Cut"/> to copy or cut <b>everything within that folder</b>.
 </step>
 <step>
 Navigate to your Sea Power installation.
@@ -38,8 +38,7 @@ Press <shortcut key="$Paste"/> to paste the Anchor Chain Preloader into your Sea
 Ensure that you see the <code>BepInEx</code>, <code>winhttp.dll</code>, and <code>doorstop_config.ini</code> files in your Sea Power folder.
 </step>
 
-You have now installed the Anchor Chain Preloader! 
-This is what allows us to distribute the bulk of Anchor Chain via the Steam Workshop.
+You have now installed the Anchor Chain Preloader!
 </procedure>
 
 ## Installing Anchor Chain
@@ -61,5 +60,5 @@ Click the green "Subscribe" button to have the Steam Workshop install Anchor Cha
 
 There is nothing else to do now other than play!
 You are ready to start installing mods using Anchor Chain and the Steam Workshop.
-If you would like to learn how to install mods, then see our guide 
+If you would like clarification on how to install mods, then see our guide 
 <a href="Installing-Mods.md">here</a>.
