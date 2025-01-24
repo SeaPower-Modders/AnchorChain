@@ -4,13 +4,19 @@
 
 ## What *Really* is Anchor Chain?
 
-In short, Anchor Chain is the Sea Power community's newest (and only) 
+Anchor Chain is the Sea Power community's oldest (and only) 
 <tooltip term="Chainloader">chainloader</tooltip>.
 While BepInEx can load plugins from its `Sea Power/BepInEx/plugins` folder, it is very inflexible about extending this capability to other folders.
-Since Sea Power mods are saved within the `Sea Power/Sea Power_Data/StreamingAssets` folder, this poses a problem for distributing mods to users.
+Since Sea Power mods are saved within the `Sea Power/Sea Power_Data/StreamingAssets` folder or various steam workshop directories, this poses a problem for distributing mods to users.
 Namely, most users won't feel comfortable or want to bother digging within the game's folder.
 This is where Anchor Chain comes in.
-Anchor Chain is a single BepInEx plugin that loads other mods into Sea Power, allowing for modders to distribute their mods via the Steam Workshop as long as the user has it installed.
+
+Anchor Chain consists of two parts, the preloader and mod loader.
+The preloader is a BepInEx plugin that loads any plugins (Steam Workshop or local) implementing the 
+<code>IPluginLoader</code> interface.
+The mod loader implements this interface, which then scans for and loads all plugins implementing the 
+<code>IAnchorChainMod</code> interface.
+This division of labor allows for Steam Workshop distribution and updates to the main body of AnchorChain while still maintaining its functionality.
 
 
 <procedure title="Getting Started With Anchor Chain" type="choices" >
