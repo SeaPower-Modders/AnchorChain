@@ -37,6 +37,9 @@ Press <shortcut key="$Paste"/> to paste the Anchor Chain Preloader into your Sea
 <step>
 Ensure that you see the <code>BepInEx</code>, <code>winhttp.dll</code>, and <code>doorstop_config.ini</code> files in your Sea Power folder.
 </step>
+<step>
+Run Sea Power once to allow BepInEx to generate any missing configuration files.
+</step>
 
 You have now installed the Anchor Chain Preloader!
 </procedure>
