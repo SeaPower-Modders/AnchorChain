@@ -151,3 +151,38 @@ If AnchorChain detects an ordering loop, it will not load either plugin, as the 
 
 ### ACPlugin Ordering
 
+The ACPlugin 
+<tooltip term="Attribute">attribute</tooltip> provides built-in plugin ordering for dependent plugins.
+For your convenience, the ACPlugin documentation is copied below. If you need a refresher on its purpose, look 
+<a href="Writing-A-Basic-Plugin.md#ACPlugin">here</a>.
+
+
+### Ordering Independent Plugins
+
+Since ordering plugins creates 
+<a href="Integrating-Multiple-Plugins.md#Implicit_Ordering_Dependencies">implicit dependencies</a>, we must use another method to order non-dependent plugins.
+In AnchorChain, it is best practice to create a plugin that depends on both and orders them as desired.
+Doing so introduces minimal overhead within the main plugins and allows for adding context-specific patches.
+The general structure of such a plugin would be as follows.
+
+<code-block lang="C#">
+using AnchorChain;
+using UnityEngine;
+
+namespace NewPlugin;
+
+<![CDATA[[ACPlugin(
+    "io.github.your-url.connector-plugin", 
+    "Connector Plugin", 
+    "0.1.0", 
+    ["io.github.other-creator.first-plugin"], 
+    ["io.github.other-creator.other-plugin"]
+)]]]>
+<![CDATA[[ACDependency("io.github.other-creator.first-plugin")]]]>
+<![CDATA[[ACDependency("io.github.other-creator.other-plugin")]]]>
+public class NewPlugin : IAnchorChainMod {
+    public void TriggerEntryPoint() {
+        // Other patching here if necessary
+    }
+}
+</code-block>
