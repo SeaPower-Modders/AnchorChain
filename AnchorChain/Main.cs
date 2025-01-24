@@ -5,7 +5,7 @@ using System.Reflection;
 
 namespace AnchorChain
 {
-    [BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.0.0")]
+    [BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.1.0")]
     public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
     {
         private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
@@ -27,10 +27,22 @@ namespace AnchorChain
 
                         foreach (Type plugin in (from x in loaded.GetExportedTypes()
                                      where x.GetInterfaces().Contains(typeof(IAnchorChainMod))
-                                     select x)) {
+                                     select x))
+                        {
                             // All valid plugins should be annotated with ACPlugin
                             ACPlugin pluginData = (ACPlugin)Attribute.GetCustomAttribute(plugin, typeof(ACPlugin));
                             if (pluginData is null) continue;
+
+                            ACConfig configData = (ACConfig)Attribute.GetCustomAttribute(plugin, typeof(ACConfig));
+
+                            if (configData is not null) {
+                                IniHandler iniHandler = Utils.openIniFile("", pluginData.GUID + ".ini", useCaching: false);
+
+                                if (iniHandler is null && configData.Required) {
+                                    Logger.LogWarning($"Required ini file did not exist: {pluginData.Name} ({pluginData.GUID})");
+                                    continue;
+                                }
+                            }
 
                             // Set dependencies and incompatibilities
                             pluginData.Dependencies =
@@ -44,7 +56,6 @@ namespace AnchorChain
 
                             if (!recognizedPlugins.TryAdd(pluginData.GUID, (pluginData, (IAnchorChainMod)Activator.CreateInstance(plugin)))) {
                                 Logger.LogWarning($"Attempted to load a duplicate plugin: {pluginData.Name} ({pluginData.GUID})");
-                                continue;
                             }
                         }
                     }
@@ -213,6 +224,13 @@ namespace AnchorChain
     public class ACIncompatibility([NotNull] string guid) : Attribute
     {
         public string GUID { get; } = guid;
+    }
+
+
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
+    public class ACConfig(bool required = false) : Attribute
+    {
+        public bool Required { get; } = required;
     }
 
 
