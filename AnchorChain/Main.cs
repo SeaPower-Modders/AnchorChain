@@ -13,6 +13,8 @@ namespace AnchorChain
         public void LoadPlugins()
         {
             Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
+            IniHandler userIni = new();
+            IniHandler defaultIni = new();
 
             // First pass, registering plugin classes, dependencies, and plugins to preload
             foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo)) {
@@ -35,14 +37,7 @@ namespace AnchorChain
 
                             ACConfig configData = (ACConfig)Attribute.GetCustomAttribute(plugin, typeof(ACConfig));
 
-                            if (configData is not null) {
-                                IniHandler iniHandler = Utils.openIniFile("", pluginData.GUID + ".ini", useCaching: false);
-
-                                if (iniHandler is null && configData.Required) {
-                                    Logger.LogWarning($"Required ini file did not exist: {pluginData.Name} ({pluginData.GUID})");
-                                    continue;
-                                }
-                            }
+                            if (configData is not null && !LoadConfigs(pluginData, configData, userIni, defaultIni)) continue;
 
                             // Set dependencies and incompatibilities
                             pluginData.Dependencies =
@@ -180,6 +175,81 @@ namespace AnchorChain
 
             _postLoadsCache[plugin.GUID] = allPostLoads;
             return allPostLoads;
+        }
+
+        private bool LoadConfigs(ACPlugin pluginData, ACConfig configData, IniHandler userIni, IniHandler defaultIni)
+        {
+            string userPath = FileManager.Instance.GetFile(pluginData.GUID + "_user.ini");
+            string defaultPath = FileManager.Instance.GetFile(pluginData.GUID + ".ini");
+
+            // Any config-using plugin must have a default config
+            if (defaultPath is null) {
+                Logger.LogWarning($"Required reference config file missing: {pluginData.Name} ({pluginData.GUID})");
+                return false;
+            }
+
+            // Make sure user config exists
+            if (userPath is null) {
+                if (!WriteNewConfig(
+                        pluginData,
+                        Globals._streamingAssetsPath.FullName + @"\ACConfigs\" + pluginData.GUID + "_user.ini",
+                        defaultPath))
+                {
+                    if (configData.Required) {
+                        return false;
+                    }
+                    Logger.LogInfo($"Failed to load config file: {pluginData.Name} ({pluginData.GUID})");
+                    return true;
+                }
+            }
+
+            userIni.open(userPath);
+            defaultIni.open(defaultPath);
+
+            if (!ConfigIsRecent(userIni, defaultIni)) {
+                if (!WriteNewConfig(pluginData, userPath, defaultPath)) {
+                    if (configData.Required) {
+                        return false;
+                    }
+                    Logger.LogInfo($"Failed to load config file: {pluginData.Name} ({pluginData.GUID})");
+                    return true;
+                }
+            }
+
+            return true;
+        }
+
+
+        private bool ConfigIsRecent(IniHandler userIni, IniHandler defaultIni)
+        {
+            foreach (KeyValuePair<string, Dictionary<string, string>> section in defaultIni.Data) {
+                if (!userIni.Data.ContainsKey(section.Key)) {
+                    return false;
+                }
+
+                foreach (string key in section.Value.Keys) {
+                    if (!userIni.Data[section.Key].ContainsKey(key)) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+
+        private bool WriteNewConfig(ACPlugin pluginData, string userPath, string defaultPath)
+        {
+            Logger.LogInfo($"Writing local config file: {pluginData.Name} ({pluginData.GUID})");
+
+            try {
+                File.Copy(defaultPath, userPath, true);
+            } catch (Exception ex) {
+                Logger.LogError($"Failed to create local config file: {pluginData.Name} ({pluginData.GUID}) | {ex.Message}");
+                return false;
+            }
+
+            return true;
         }
     }
 
