@@ -16,7 +16,12 @@ namespace AnchorChain
             IniHandler userIni = new();
             IniHandler defaultIni = new();
 
-            // First pass, registering plugin classes, dependencies, and plugins to preload
+            if (!Setup()) {
+                Logger.LogError($"Anchor Chain setup failed, aborting load.");
+                return;
+            }
+
+            // First pass, registering plugin classes, configs, dependencies, and plugins to preload
             foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo)) {
                 string possiblepath = Path.Combine(dir.FullName);
 
@@ -158,6 +163,24 @@ namespace AnchorChain
         }
 
 
+        private bool Setup()
+        {
+            if (!Directory.Exists(Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs"))) {
+                try {
+                    Directory.CreateDirectory(Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs"));
+                    FileManager.Instance.RefreshSearchDirectories(); // Index ACConfigs if it doesn't exist
+                } catch (Exception ex) {
+                    Logger.LogError($"Failed to create ACConfigs: {ex}");
+                    return false;
+                }
+            }
+
+            FileManager.Instance.directories.First((x => x.DirectoryInfo.Name == "ACConfigs")).IsChecked = true;
+
+            return true;
+        }
+
+
         private HashSet<ACPlugin> FindAllPostLoads(ACPlugin plugin, Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins, HashSet<ACPlugin> prev)
         {
             HashSet<ACPlugin> cachedPostLoads = new();
@@ -177,6 +200,7 @@ namespace AnchorChain
             return allPostLoads;
         }
 
+
         private bool LoadConfigs(ACPlugin pluginData, ACConfig configData, IniHandler userIni, IniHandler defaultIni)
         {
             string userPath = FileManager.Instance.GetFile(pluginData.GUID + "_user.ini");
@@ -190,9 +214,10 @@ namespace AnchorChain
 
             // Make sure user config exists
             if (userPath is null) {
+                userPath = Globals._streamingAssetsPath.FullName + @"\ACConfigs\" + pluginData.GUID + "_user.ini";
                 if (!WriteNewConfig(
                         pluginData,
-                        Globals._streamingAssetsPath.FullName + @"\ACConfigs\" + pluginData.GUID + "_user.ini",
+                        userPath,
                         defaultPath))
                 {
                     if (configData.Required) {
@@ -203,9 +228,11 @@ namespace AnchorChain
                 }
             }
 
+            // Open now-insured configs
             userIni.open(userPath);
             defaultIni.open(defaultPath);
 
+            // Ensure config validity
             if (!ConfigIsRecent(userIni, defaultIni)) {
                 if (!WriteNewConfig(pluginData, userPath, defaultPath)) {
                     if (configData.Required) {
