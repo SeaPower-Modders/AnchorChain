@@ -50,7 +50,7 @@ public class Config03 : IAnchorChainMod
 }
 
 
-[ACPlugin("io.github.seapower-modders.AnchorChainConfigI04", "Config 04", "1.0")]
+[ACPlugin("io.github.seapower-modders.AnchorChainConfig04", "Config 04", "1.0")]
 [ACConfig(required: true)]
 public class Config04 : IAnchorChainMod
 {
@@ -59,5 +59,28 @@ public class Config04 : IAnchorChainMod
 		Debug.LogWarning("Config info 04 loaded.");
 	}
 }
+
+
+[ACPlugin("io.github.seapower-modders.AnchorChainConfig05", "Config 05", "1.0")]
+[ACConfig(required: true)]
+public class Config05 : IAnchorChainMod
+{
+	public void TriggerEntryPoint()
+	{
+		Debug.LogWarning("Config info 05 loaded.");
+	}
+}
+
+
+[ACPlugin("io.github.seapower-modders.AnchorChainConfig06", "Config 06", "1.0")]
+[ACConfig(required: true)]
+public class Config06 : IAnchorChainMod
+{
+	public void TriggerEntryPoint()
+	{
+		Debug.LogWarning("Config info 06 loaded.");
+	}
+}
+
 
 #endif
