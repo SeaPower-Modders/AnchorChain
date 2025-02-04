@@ -234,6 +234,7 @@ namespace AnchorChain
 
             // Ensure config validity
             if (!ConfigIsRecent(userIni, defaultIni)) {
+                Logger.LogInfo($"Plugin missing section key: {pluginData.Name} ({pluginData.GUID})");
                 if (!WriteNewConfig(pluginData, userPath, defaultPath)) {
                     if (configData.Required) {
                         return false;
