@@ -190,8 +190,7 @@ namespace AnchorChain
 
         private HashSet<ACPlugin> FindAllPostLoads(ACPlugin plugin, Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins, HashSet<ACPlugin> prev)
         {
-            HashSet<ACPlugin> cachedPostLoads = new();
-            if (_postLoadsCache.TryGetValue(plugin.GUID, out cachedPostLoads)) {
+            if (_postLoadsCache.TryGetValue(plugin.GUID, out HashSet<ACPlugin> cachedPostLoads)) {
                 return cachedPostLoads;
             }
 
@@ -288,7 +287,7 @@ namespace AnchorChain
         }
 
 
-        private string FindFile(string fileName)
+        public static string FindFile(string fileName)
         {
             foreach (DirectoryInfo dir in _allDirectories) {
                 string path = Path.Join(dir.FullName, fileName);
