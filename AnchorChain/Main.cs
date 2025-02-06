@@ -9,6 +9,9 @@ namespace AnchorChain
     public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
     {
         private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
+        private static HashSet<DirectoryInfo> _allDirectories = new();
+        private static string _configPath = string.Empty;
+
 
         public void LoadPlugins()
         {
@@ -22,10 +25,10 @@ namespace AnchorChain
             }
 
             // First pass, registering plugin classes, configs, dependencies, and plugins to preload
-            foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo)) {
-                string possiblepath = Path.Combine(dir.FullName);
+            foreach (DirectoryInfo dir in _allDirectories) {
+                string possiblePath = Path.Combine(dir.FullName);
 
-                string[] dllFiles = Directory.GetFiles(possiblepath, "*.dll", SearchOption.AllDirectories);
+                string[] dllFiles = Directory.GetFiles(possiblePath, "*.dll", SearchOption.AllDirectories);
 
                 foreach (string asmPath in dllFiles) {
                     try {
@@ -165,17 +168,21 @@ namespace AnchorChain
 
         private bool Setup()
         {
-            if (!Directory.Exists(Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs"))) {
+            foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo)) {
+                _allDirectories.Add(dir);
+            }
+
+            _configPath = Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs");
+
+            if (!Directory.Exists(_configPath)) {
                 try {
-                    Directory.CreateDirectory(Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs"));
-                    FileManager.Instance.RefreshSearchDirectories(); // Index ACConfigs if it doesn't exist
+                    Directory.CreateDirectory(_configPath);
+                    _allDirectories.Add(new DirectoryInfo(_configPath));
                 } catch (Exception ex) {
                     Logger.LogError($"Failed to create ACConfigs: {ex}");
                     return false;
                 }
             }
-
-            FileManager.Instance.directories.First((x => x.DirectoryInfo.Name == "ACConfigs")).IsChecked = true;
 
             return true;
         }
@@ -203,8 +210,8 @@ namespace AnchorChain
 
         private bool LoadConfigs(ACPlugin pluginData, ACConfig configData, IniHandler userIni, IniHandler defaultIni)
         {
-            string userPath = FileManager.Instance.GetFile(pluginData.GUID + "_user.ini");
-            string defaultPath = FileManager.Instance.GetFile(pluginData.GUID + ".ini");
+            string userPath = FindFile(pluginData.GUID + "_user.ini");
+            string defaultPath = FindFile(pluginData.GUID + ".ini");
 
             // Any config-using plugin must have a default config
             if (defaultPath is null) {
@@ -214,7 +221,7 @@ namespace AnchorChain
 
             // Make sure user config exists
             if (userPath is null) {
-                userPath = Globals._streamingAssetsPath.FullName + @"\ACConfigs\" + pluginData.GUID + "_user.ini";
+                userPath = Path.Join(_configPath, pluginData.GUID + "_user.ini");
                 if (!WriteNewConfig(
                         pluginData,
                         userPath,
@@ -278,6 +285,17 @@ namespace AnchorChain
             }
 
             return true;
+        }
+
+
+        private string FindFile(string fileName)
+        {
+            foreach (DirectoryInfo dir in _allDirectories) {
+                string path = Path.Join(dir.FullName, fileName);
+                if (File.Exists(path)) return path;
+            }
+
+            return null;
         }
     }
 
