@@ -21,6 +21,10 @@
       <HintPath>..\Dll\BepInEx.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Noesis.NoesisGUI">
+      <HintPath>..\Dll\Noesis.NoesisGUI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Seapower-Scripts">
       <HintPath>..\Dll\Seapower-Scripts.dll</HintPath>
       <Private>False</Private>

@@ -237,6 +237,7 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 
 		// Ensure config validity
 		foreach ((string sectionName, Dictionary<string, string> section) in defaultIni.Data) {
+			Logger.LogDebug(sectionName);
 			if (ReservedSectionKeys.Contains(sectionName)) continue;
 
 			if (!userIni.doesSectionExist(sectionName)) {
@@ -254,9 +255,11 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 
 		// Process any config commands
 		if (!defaultIni.readValue("AnchorChain.State", "hasReset", false)) {
-			foreach ((string section, string keys) in defaultIni.GetSectionKeyValues("AnchorChain.ResetValues")) {
-				foreach (string key in keys.Split(",")) {
-					userIni.writeValue(section, key, defaultIni.readValue(section, key, ""));
+			if (defaultIni.doesSectionExist("AnchorChain.ResetValues")) {
+				foreach ((string section, string keys) in defaultIni.GetSectionKeyValues("AnchorChain.ResetValues")) {
+					foreach (string key in keys.Split(",")) {
+						userIni.writeValue(section, key, defaultIni.readValue(section, key, ""));
+					}
 				}
 			}
 			defaultIni.writeValue("AnchorChain.State", "hasReset", true);
@@ -326,7 +329,7 @@ public class ACIncompatibility([NotNull] string guid) : Attribute
 
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-public class ACConfig(bool required = false) : Attribute
+public class ACConfig(bool required = true) : Attribute
 {
 	public bool Required { get; } = required;
 }
