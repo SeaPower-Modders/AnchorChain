@@ -12,7 +12,7 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
 	private static HashSet<DirectoryInfo> _allDirectories = new();
 	private static string _configPath = string.Empty;
-
+	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
 
 	public void LoadPlugins()
 	{
@@ -217,11 +217,12 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		// Make sure user config exists
 		if (userPath is null) {
 			userPath = Path.Join(_configPath, pluginData.GUID + "_user.ini");
-			if (!WriteNewConfig(
-					pluginData,
-					userPath,
-					defaultPath))
-			{
+			Logger.LogInfo($"Writing local config file: {pluginData.Name} ({pluginData.GUID})");
+
+			try {
+				File.Copy(defaultPath, userPath, true);
+			} catch (Exception ex) {
+				Logger.LogError($"Failed to create local config file: {pluginData.Name} ({pluginData.GUID}) | {ex.Message}");
 				if (configData.Required) {
 					return false;
 				}
@@ -230,54 +231,40 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			}
 		}
 
-		// Open now-insured configs
+		// Open now-ensured configs
 		userIni.open(userPath);
 		defaultIni.open(defaultPath);
 
 		// Ensure config validity
-		if (!ConfigIsRecent(userIni, defaultIni)) {
-			Logger.LogInfo($"Plugin missing section key: {pluginData.Name} ({pluginData.GUID})");
-			if (!WriteNewConfig(pluginData, userPath, defaultPath)) {
-				if (configData.Required) {
-					return false;
-				}
-				Logger.LogInfo($"Failed to load config file: {pluginData.Name} ({pluginData.GUID})");
-				return true;
-			}
-		}
+		foreach ((string sectionName, Dictionary<string, string> section) in defaultIni.Data) {
+			if (ReservedSectionKeys.Contains(sectionName)) continue;
 
-		return true;
-	}
-
-
-	private bool ConfigIsRecent(IniHandler userIni, IniHandler defaultIni)
-	{
-		foreach (KeyValuePair<string, Dictionary<string, string>> section in defaultIni.Data) {
-			if (!userIni.Data.ContainsKey(section.Key)) {
-				return false;
+			if (!userIni.doesSectionExist(sectionName)) {
+				userIni.AddSection(sectionName, new());
+				Logger.LogInfo($"Plugin config missing section: {pluginData.Name} ({pluginData.GUID})");
 			}
 
-			foreach (string key in section.Value.Keys) {
-				if (!userIni.Data[section.Key].ContainsKey(key)) {
-					return false;
+			foreach (string key in section.Keys) {
+				if (!userIni.doesKeyExist(sectionName, key)) {
+					userIni.writeValue(sectionName, key, section[key]);
+					Logger.LogInfo($"Plugin config missing key: {pluginData.Name} ({pluginData.GUID})");
 				}
 			}
 		}
 
-		return true;
-	}
-
-
-	private bool WriteNewConfig(ACPlugin pluginData, string userPath, string defaultPath)
-	{
-		Logger.LogInfo($"Writing local config file: {pluginData.Name} ({pluginData.GUID})");
-
-		try {
-			File.Copy(defaultPath, userPath, true);
-		} catch (Exception ex) {
-			Logger.LogError($"Failed to create local config file: {pluginData.Name} ({pluginData.GUID}) | {ex.Message}");
-			return false;
+		// Process any config commands
+		if (!defaultIni.readValue("AnchorChain.State", "hasReset", false)) {
+			foreach ((string section, string keys) in defaultIni.GetSectionKeyValues("AnchorChain.ResetValues")) {
+				foreach (string key in keys.Split(",")) {
+					userIni.writeValue(section, key, defaultIni.readValue(section, key, ""));
+				}
+			}
+			defaultIni.writeValue("AnchorChain.State", "hasReset", true);
 		}
+
+		// Save all config changes to disk
+		userIni.saveFile(true);
+		defaultIni.saveFile(true);
 
 		return true;
 	}
