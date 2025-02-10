@@ -237,7 +237,6 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 
 		// Ensure config validity
 		foreach ((string sectionName, Dictionary<string, string> section) in defaultIni.Data) {
-			Logger.LogDebug(sectionName);
 			if (ReservedSectionKeys.Contains(sectionName)) continue;
 
 			if (!userIni.doesSectionExist(sectionName)) {
