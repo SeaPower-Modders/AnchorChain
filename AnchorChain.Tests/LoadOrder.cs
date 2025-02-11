@@ -1,5 +1,5 @@
 ﻿// Uncomment following line to activate SD tests
-#define LO
+// #define LO
 #if LO
 
 using UnityEngine;

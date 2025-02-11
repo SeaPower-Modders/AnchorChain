@@ -1,5 +1,5 @@
 ﻿// Uncomment following line to activate SD tests
-#define SD
+// #define SD
 #if SD
 
 using UnityEngine;
