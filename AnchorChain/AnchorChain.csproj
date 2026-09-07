@@ -10,7 +10,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AnchorChain.Preloader\AnchorChain.Preloader.csproj" />
-    <Compile Include="..\Shared\PluginDirectories.cs" Link="PluginDirectories.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -9,12 +9,13 @@ not disable a checked directory. Nested support folders are scanned, but a separ
 registered child mod follows its own checkbox and menu position.
 
 AnchorChain also checks its own directory before initializing. This protects users
-whose older preloader still invokes unchecked copies of AnchorChain. The updated
-preloader selects one checked loader and stops after invoking it. Update both DLLs
-when possible, but the loader-side selection check does not require the new preloader.
+whose preloader still invokes unchecked copies of AnchorChain. The preloader is
+not distributed through the Workshop, so AnchorChain must work with older installed
+versions. These checks live entirely in AnchorChain.dll and require no preloader update.
 
 Loader filenames may have a prefix, such as `TestAnchorChain.dll`. Discovery matches
-the `AnchorChain.dll` suffix, case-insensitively. The DLL must still expose
+the `AnchorChain.dll` suffix in the existing preloader. Preserve that capitalization
+for compatibility with older installs. The DLL must still expose
 `AnchorChain.AnchorChainLoader` implementing `IPluginLoader`.
 Plugin discovery and reload checks treat any filename containing `AnchorChain`
 and ending in `.dll` as a loader binary, also case-insensitively.
