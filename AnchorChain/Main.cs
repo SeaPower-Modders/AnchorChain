@@ -13,7 +13,6 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
 	private static bool _initialized;
-	internal static AnchorChainLoader Current { get; private set; }
 
 	public void LoadPlugins()
 	{
@@ -23,20 +22,13 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		}
 		if (_initialized) return;
 		_initialized = true;
-		Current = this;
 		try {
 			LoadSelectedPlugins();
 		}
 		catch (Exception error) {
-			PluginRuntime.RequireRestart("Plugin discovery or initialization failed.");
+			PluginRuntime.Failed = true;
 			Logger.LogError($"AnchorChain load aborted: {error}");
 		}
-	}
-
-	internal void ReloadPlugins()
-	{
-		_initialized = false;
-		LoadPlugins();
 	}
 
 	private void LoadSelectedPlugins()
@@ -49,7 +41,6 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		Directory.CreateDirectory(_configPath);
 		_allDirectories.Add(new DirectoryInfo(_configPath));
 
-		PluginRuntime.CaptureSelection(directories);
 		Dictionary<string, (ACPlugin Metadata, Type Type)> recognized = new();
 		List<ACPlugin> preferred = new();
 		HashSet<string> seenFiles = new(StringComparer.OrdinalIgnoreCase);
@@ -59,7 +50,6 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			foreach (string path in PluginDirectories.DllFiles(directory, directories)) {
 				if (!seenFiles.Add(path) || PluginDirectories.IsLoader(path)) continue;
 				try {
-					PluginRuntime.RememberAssembly(path);
 					Assembly assembly = Assembly.LoadFile(path);
 					foreach (Type type in assembly.GetExportedTypes()
 						.Where(type => !type.IsAbstract && !type.ContainsGenericParameters && typeof(IAnchorChainMod).IsAssignableFrom(type))
@@ -85,7 +75,7 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 					// Native DLLs can accompany mods. They are not managed plugins.
 				}
 				catch (Exception error) {
-					PluginRuntime.RequireRestart("A plugin assembly could not be inspected.");
+					PluginRuntime.Failed = true;
 					Logger.LogWarning($"Error inspecting {path}: {error}");
 				}
 			}
@@ -121,7 +111,7 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 				continue;
 			}
 			try {
-				PluginRuntime.Start(metadata, recognized[metadata.GUID].Type);
+				PluginRuntime.Start(recognized[metadata.GUID].Type);
 				loaded.Add(metadata.GUID);
 				Logger.LogInfo($"Loaded plugin {metadata.Name} ({metadata.GUID})");
 			}
