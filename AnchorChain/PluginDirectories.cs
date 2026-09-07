@@ -7,32 +7,30 @@ internal static class PluginDirectories
     internal static bool IsLoader(string path) => Path.GetFileName(path).Contains("AnchorChain", StringComparison.OrdinalIgnoreCase)
         && path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
 
-    // IsEnabled controls checkbox editability. Locked but checked base directories remain active.
-    public static IReadOnlyList<DirectoryInfo> Selected(IEnumerable<SearchDirectory> directories) => directories
-        .Where(directory => directory.IsChecked && directory.DirectoryInfo.Exists)
-        .Select(directory => directory.DirectoryInfo)
-        .GroupBy(directory => directory.FullName, StringComparer.OrdinalIgnoreCase)
-        .Select(group => group.First()).ToArray();
+    private static bool IsWithin(string path, DirectoryInfo dir) => path.TrimEnd(Path.DirectorySeparatorChar).StartsWith(
+        dir.FullName.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
-    internal static bool IsSelected(string file, IEnumerable<SearchDirectory> directories)
+    // IsEnabled controls checkbox editability. Locked but checked base directories remain active.
+    internal static IReadOnlyList<DirectoryInfo> Selected(IEnumerable<SearchDirectory> dirs) => dirs
+        .Where(dir => dir.IsChecked && dir.DirectoryInfo.Exists)
+        .Select(dir => dir.DirectoryInfo.FullName).Distinct(StringComparer.OrdinalIgnoreCase)
+        .Select(path => new DirectoryInfo(path)).ToArray();
+
+    internal static bool IsSelected(string file, IEnumerable<SearchDirectory> dirs)
     {
         file = Path.GetFullPath(file);
         // The most specific registered directory owns the DLL, even when an ancestor is checked.
-        SearchDirectory owner = directories.Where(directory => file.StartsWith(
-                directory.DirectoryInfo.FullName.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(directory => directory.DirectoryInfo.FullName.Length).FirstOrDefault();
+        var owner = dirs.Where(dir => IsWithin(file, dir.DirectoryInfo))
+            .OrderByDescending(dir => dir.DirectoryInfo.FullName.Length).FirstOrDefault();
         return owner is not null && owner.IsChecked && owner.DirectoryInfo.Exists;
     }
 
-    public static IEnumerable<string> DllFiles(DirectoryInfo directory, IEnumerable<SearchDirectory> directories)
+    internal static IEnumerable<string> DllFiles(DirectoryInfo dir, IEnumerable<SearchDirectory> dirs)
     {
-        string prefix = directory.FullName.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        string[] nestedRoots = directories.Select(item => item.DirectoryInfo.FullName.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar)
-            .Where(path => path.Length > prefix.Length && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToArray();
-        return Directory.EnumerateFiles(directory.FullName, "*.dll", SearchOption.AllDirectories)
-            // A checked parent must not rediscover an unchecked child mod or steal its load priority.
-            .Where(file => !nestedRoots.Any(root => file.StartsWith(root, StringComparison.OrdinalIgnoreCase)))
+        var children = dirs.Select(item => item.DirectoryInfo).Where(child => IsWithin(child.FullName, dir)).ToArray();
+        return Directory.EnumerateFiles(dir.FullName, "*.dll", SearchOption.AllDirectories)
+            // Registered children use their own selection and priority.
+            .Where(file => !children.Any(child => IsWithin(file, child)))
             .OrderBy(file => file, StringComparer.OrdinalIgnoreCase).ThenBy(file => file, StringComparer.Ordinal);
     }
 }
