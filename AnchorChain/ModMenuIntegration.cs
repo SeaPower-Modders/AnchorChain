@@ -15,9 +15,24 @@ internal static class ModMenuIntegration
     private static readonly FieldInfo SaveCommand = AccessTools.Field(typeof(ModMenuViewModel), "<WriteLoadOrderCommand>k__BackingField");
     private static readonly Type MessageType = typeof(ModMenuViewModel).Assembly.GetType("SeapowerUI.ViewModels.MessageBoxViewModel", true);
     private static bool _installed;
+    private static string[] _dllPaths = [];
+    private static Action _reloadPlugins;
 
-    internal static void Install()
+    private static string[] DllPaths(IEnumerable<SearchDirectory> source)
     {
+        var directories = source.ToArray();
+        return PluginDirectories.Selected(directories)
+            .SelectMany(directory => PluginDirectories.DllFiles(directory, directories))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static bool CanReload(string[] paths) => PluginRuntime.CanReload && _dllPaths.Where(PluginDirectories.IsLoader)
+        .SequenceEqual(paths.Where(PluginDirectories.IsLoader), StringComparer.OrdinalIgnoreCase);
+
+    internal static void Install(Action reloadPlugins)
+    {
+        _dllPaths = DllPaths(FileManager.Instance.Directories);
+        _reloadPlugins = reloadPlugins;
         if (_installed) return;
         if (SaveCommand is null) throw new MissingFieldException(typeof(ModMenuViewModel).FullName, "WriteLoadOrderCommand");
         new Harmony("io.github.seapower_modders.anchorchain.menu").Patch(
@@ -31,13 +46,17 @@ internal static class ModMenuIntegration
         if (__instance.WriteLoadOrderCommand is not ICommand original) return;
         SaveCommand.SetValue(__instance, new DelegateCommand(_ => {
             try {
-                if (!PluginRuntime.HasChanges(__instance.Directories) && PluginRuntime.RestartReason is null) {
+                string[] paths = DllPaths(__instance.Directories);
+                if (_dllPaths.SequenceEqual(paths, StringComparer.OrdinalIgnoreCase) && !PluginRuntime.Failed) {
                     original.Execute(null);
                     return;
                 }
-                string blocker = PluginRuntime.ReloadBlocker(__instance.Directories);
-                Show("DLL mods changed", blocker ?? "Save and restart Sea Power, or reload plugins that support cleanup. Unsaved game progress will be lost.",
-                    "Save and restart", () => Restart(__instance), blocker is null ? () => Reload(__instance) : null);
+                bool canReload = CanReload(paths);
+                string message = canReload
+                    ? "Save and restart, or reload plugins. Always restart after updating a DLL; reload reuses existing code."
+                    : "The loader changed, a plugin cannot unload, or loading failed. Save and restart to apply these changes.";
+                Show("DLL mods changed", message + "\nUnsaved game progress will be lost.",
+                    "Save and restart", () => Restart(__instance), canReload ? () => Reload(__instance) : null);
             }
             catch (Exception error) { ShowError(error); }
         }));
@@ -75,21 +94,22 @@ internal static class ModMenuIntegration
     private static void Reload(ModMenuViewModel menu)
     {
         try {
-            PluginRuntime.Unload(menu.Directories);
+            if (!CanReload(DllPaths(menu.Directories))) throw new InvalidOperationException("These plugins require a restart.");
+            PluginRuntime.Unload();
             FileManager.Instance.SaveDirectories(menu.Directories);
             FileManager.Instance.RefreshSearchDirectories();
             IniHandler.invalidateCache();
             IniHandler.invalidateModifierRegistry();
             // Install plugin patches before the new scene's Awake methods execute.
-            AnchorChainLoader.Current.ReloadPlugins();
-            if (PluginRuntime.RestartReason is not null) throw new InvalidOperationException(PluginRuntime.RestartReason);
+            _reloadPlugins();
+            if (PluginRuntime.Failed) throw new InvalidOperationException("Plugin loading failed. Restart Sea Power.");
             MenuSystemViewModel.Instance.CurrentWindow = new BlankMenuView();
             PlayerPrefs.SetInt("ApplicationQuitProperly", 1);
             PlayerPrefs.Save();
             SceneManager.LoadScene(0);
         }
         catch {
-            PluginRuntime.RequireRestart("Plugin reload did not finish. Restart Sea Power before playing.");
+            PluginRuntime.Failed = true;
             throw;
         }
     }

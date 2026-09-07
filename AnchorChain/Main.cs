@@ -30,11 +30,17 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			Logger.LogError($"AnchorChain load aborted: {error}");
 		}
 		try {
-			ModMenuIntegration.Install();
+			ModMenuIntegration.Install(ReloadPlugins);
 		}
 		catch (Exception error) {
 			Logger.LogError($"Could not install AnchorChain mod-menu controls: {error}");
 		}
+	}
+
+	private void ReloadPlugins()
+	{
+		_initialized = false;
+		LoadPlugins();
 	}
 
 	private void LoadSelectedPlugins()

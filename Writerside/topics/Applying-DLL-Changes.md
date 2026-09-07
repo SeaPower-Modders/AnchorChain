@@ -1,10 +1,14 @@
 # Applying DLL changes
 
-The mod menu keeps Sea Power's normal apply flow when the selected DLL paths,
-contents, and ordering are unchanged. When those change, AnchorChain offers
+The mod menu keeps Sea Power's normal apply flow when the selected DLL paths
+and ordering are unchanged. When those change, AnchorChain offers
 **Save and restart**, **Cancel**, and, when every loaded plugin supports cleanup,
 **Reload plugins**. The dialog explains why a restart is required when reload is
 unavailable. Applying either operation can discard unsaved game progress.
+
+DLL contents are not inspected for updates. Always restart after replacing or
+updating a DLL, even if its path has not changed. Reload only reinitializes code
+already loaded in the process; it does not replace assemblies.
 
 Cancel does not save or apply the menu selection. Restart saves the selection,
 starts a hidden Windows helper, and quits Sea Power. The helper waits up to 60
@@ -27,7 +31,7 @@ installed across plugin reloads. It never globally removes Harmony patches.
 - Cancel and confirm nothing was applied or saved.
 - With a legacy plugin loaded, confirm reload is unavailable and restart is offered.
 - With only reloadable plugins, reload twice and check for duplicate hooks or objects.
-- Replace a DLL without changing its path and confirm restart is required.
+- Confirm the reload prompt warns that DLL updates require a restart.
 - Disable AnchorChain itself and confirm restart is required. With an old preloader,
   verify the disabled loader logs that it is skipping initialization on the next launch.
 - Exercise restart and helper failure in a development installation.
