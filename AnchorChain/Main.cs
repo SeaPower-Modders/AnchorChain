@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using BepInEx;
 using SeaPower;
 using System.Reflection;
@@ -28,6 +28,12 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		catch (Exception error) {
 			PluginRuntime.Failed = true;
 			Logger.LogError($"AnchorChain load aborted: {error}");
+		}
+		try {
+			ModMenuIntegration.Install();
+		}
+		catch (Exception error) {
+			Logger.LogError($"Could not install AnchorChain mod-menu controls: {error}");
 		}
 	}
 
