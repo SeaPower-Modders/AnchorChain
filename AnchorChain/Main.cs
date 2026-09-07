@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using BepInEx;
 using SeaPower;
 using System.Reflection;
@@ -10,12 +10,16 @@ namespace AnchorChain;
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
 	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
-	private static HashSet<DirectoryInfo> _allDirectories = new();
+	private static List<DirectoryInfo> _allDirectories = new();
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
 
 	public void LoadPlugins()
 	{
+		if (!PluginDirectories.IsSelected(typeof(AnchorChainLoader).Assembly.Location, FileManager.Instance.Directories)) {
+			Logger.LogInfo("AnchorChain's directory is not selected; skipping initialization.");
+			return;
+		}
 		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
 		IniHandler userIni = new();
 		IniHandler defaultIni = new();
@@ -26,12 +30,12 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		}
 
 		// First pass, registering plugin classes, configs, dependencies, and plugins to preload
-		foreach (DirectoryInfo dir in _allDirectories) {
-			string possiblePath = Path.Combine(dir.FullName);
-
-			string[] dllFiles = Directory.GetFiles(possiblePath, "*.dll", SearchOption.AllDirectories);
+		var directories = FileManager.Instance.Directories.ToArray();
+		foreach (DirectoryInfo dir in PluginDirectories.Selected(directories)) {
+			var dllFiles = PluginDirectories.DllFiles(dir, directories);
 
 			foreach (string asmPath in dllFiles) {
+				if (PluginDirectories.IsLoader(asmPath)) continue;
 				try {
 					Assembly loaded = Assembly.LoadFile(asmPath);
 					Logger.LogInfo("Loaded assembly " + loaded.FullName);
@@ -164,7 +168,8 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 
 	private bool Setup()
 	{
-		foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo)) {
+		_allDirectories.Clear();
+		foreach (var dir in PluginDirectories.Selected(FileManager.Instance.Directories)) {
 			_allDirectories.Add(dir);
 		}
 
@@ -173,13 +178,13 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		if (!Directory.Exists(_configPath)) {
 			try {
 				Directory.CreateDirectory(_configPath);
-				_allDirectories.Add(new DirectoryInfo(_configPath));
 			} catch (Exception ex) {
 				Logger.LogError($"Failed to create ACConfigs: {ex}");
 				return false;
 			}
 		}
 
+		_allDirectories.Add(new DirectoryInfo(_configPath));
 		return true;
 	}
 
