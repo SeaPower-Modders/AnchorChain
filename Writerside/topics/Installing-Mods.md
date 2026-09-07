@@ -2,10 +2,21 @@
 
 # Installing Mods
 
+## Selected DLL mods
+
+Only checked mod directories contribute AnchorChain plugins. A locked checkbox does
+not disable a checked directory. Nested support folders are scanned, but a separately
+registered child mod follows its own checkbox and menu position.
+
+AnchorChain also checks its own directory before initializing. This protects users
+whose older preloader still invokes unchecked copies of AnchorChain. The updated
+preloader selects one checked loader and stops after invoking it. Update both DLLs
+when possible, but the loader-side selection check does not require the new preloader.
+
 ## Installing Steam Workshop Mods
 
 AnchorChain was made to make installing mods from the Steam Workshop as simple as possible. 
-Simply subscribe to the mod you would like to use, and it should be loaded by Anchor Chain.
+Subscribe to the mod, enable its checkbox in Sea Power's mod menu, and apply the selection.
 
 ## Installing Manually-Installed Mods
 

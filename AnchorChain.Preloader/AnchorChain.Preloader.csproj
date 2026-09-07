@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Include="..\Shared\PluginDirectories.cs" Link="PluginDirectories.cs" />
         <Reference Include="0Harmony">
             <HintPath>..\Dll\0Harmony.dll</HintPath>
             <Private>False</Private>

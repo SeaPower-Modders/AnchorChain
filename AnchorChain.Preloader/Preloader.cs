@@ -14,14 +14,12 @@ public class AnchorChainPreloader: BaseUnityPlugin
 
 		bool loadedAnchorChain = false;
 
-		foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo)) {
-			string possiblepath = Path.Combine(dir.FullName);
-
-			string[] dllFiles = Directory.GetFiles(possiblepath, "*.dll", SearchOption.AllDirectories);
-			string asmPath = (from x in dllFiles where x.EndsWith("AnchorChain.dll") select x).FirstOrDefault();
-			if (asmPath is null) { continue; }
-
+		var directories = FileManager.Instance.Directories.ToArray();
+		foreach (var dir in PluginDirectories.Selected(directories)) {
 			try {
+				string asmPath = PluginDirectories.DllFiles(dir, directories).FirstOrDefault(path =>
+					Path.GetFileName(path).Equals("AnchorChain.dll", StringComparison.OrdinalIgnoreCase));
+				if (asmPath is null) continue;
 				Assembly loaded = Assembly.LoadFile(asmPath);
 				Logger.LogInfo("Loaded assembly " + loaded.FullName);
 
@@ -33,6 +31,8 @@ public class AnchorChainPreloader: BaseUnityPlugin
 
 				((IPluginLoader) Activator.CreateInstance(chainLoader)).LoadPlugins();
 				loadedAnchorChain = true;
+				// Only the highest-priority selected loader may initialize plugins.
+				break;
 			}
 			catch (Exception e) {
 				Logger.LogError($"Failed to initialize AnchorChain with error: {e}");
