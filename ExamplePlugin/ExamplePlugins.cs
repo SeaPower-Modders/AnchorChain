@@ -28,7 +28,7 @@ namespace ExamplePlugin
     }
 
     /// <summary>
-    /// This plugin is not specified to load before or after any plugins, and will be loaded in the first pass of plugin loading as a result.
+    /// This plugin has no ordering constraints and follows the mod menu preference.
     /// </summary>
     [ACPlugin("your-name.plugin-3", "Plugin 3", "2.3")]
     public class Plugin3 : MonoBehaviour, IAnchorChainMod
@@ -41,7 +41,7 @@ namespace ExamplePlugin
 
     /// <summary>
     /// This plugin requires Plugin 1 at a minimum version of 0.3.0, and a maximum version of 1.0. If Plugin 1 is not present or is mis-versioned, it will not load.
-    /// It will also load in the first pass of plugin loading for the same reason as Plugin 3.
+    /// Presence dependencies do not impose ordering. It follows the menu preference unless another plugin orders it.
     /// </summary>
     [ACPlugin("your-name.plugin-4", "Plugin 4", "1.3.2")]
     [ACDependency("your-name.plugin-1", "0.3.0", "1.0")]
