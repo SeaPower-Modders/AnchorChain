@@ -9,10 +9,10 @@ namespace AnchorChain;
 [BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.1.0")]
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
-	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
-	private static List<DirectoryInfo> _allDirectories = new();
+	private static readonly List<DirectoryInfo> _allDirectories = new();
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
+	private static bool _initialized;
 
 	public void LoadPlugins()
 	{
@@ -20,191 +20,104 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			Logger.LogInfo("AnchorChain's directory is not selected; skipping initialization.");
 			return;
 		}
-		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
-		IniHandler userIni = new();
-		IniHandler defaultIni = new();
-
-		if (!Setup()) {
-			Logger.LogError($"Anchor Chain setup failed, aborting load.");
-			return;
+		if (_initialized) return;
+		_initialized = true;
+		try {
+			LoadSelectedPlugins();
 		}
+		catch (Exception error) {
+			Logger.LogError($"AnchorChain load aborted: {error}");
+		}
+	}
 
-		// First pass, registering plugin classes, configs, dependencies, and plugins to preload
+	private void LoadSelectedPlugins()
+	{
 		var directories = FileManager.Instance.Directories.ToArray();
-		foreach (DirectoryInfo dir in PluginDirectories.Selected(directories)) {
-			var dllFiles = PluginDirectories.DllFiles(dir, directories);
-
-			foreach (string asmPath in dllFiles) {
-				if (PluginDirectories.IsLoader(asmPath)) continue;
-				try {
-					Assembly loaded = Assembly.LoadFile(asmPath);
-					Logger.LogInfo("Loaded assembly " + loaded.FullName);
-
-					foreach (Type plugin in (from x in loaded.GetExportedTypes() where x.GetInterfaces().Contains(typeof(IAnchorChainMod)) select x))
-					{
-						// All valid plugins should be annotated with ACPlugin
-						ACPlugin pluginData = (ACPlugin)Attribute.GetCustomAttribute(plugin, typeof(ACPlugin));
-						if (pluginData is null) continue;
-
-						ACConfig configData = (ACConfig)Attribute.GetCustomAttribute(plugin, typeof(ACConfig));
-
-						if (configData is not null && !LoadConfigs(pluginData, configData, userIni, defaultIni)) continue;
-
-						// Set dependencies and incompatibilities
-						pluginData.Dependencies =
-							new(Attribute.GetCustomAttributes(plugin, typeof(ACDependency)).Cast<ACDependency>() ?? []);
-						pluginData.Incompatibilities =
-							new(Attribute.GetCustomAttributes(plugin, typeof(ACIncompatibility)).Cast<ACIncompatibility>() ?? []);
-
-						// Ensure all preloads and postloads are dependencies
-						pluginData.Dependencies.UnionWith(pluginData.Before.Select(x => new ACDependency(x, null, null)));
-						pluginData.Dependencies.UnionWith(pluginData.After.Select(x => new ACDependency(x, null, null)));
-
-						if (!recognizedPlugins.TryAdd(pluginData.GUID, (pluginData, (IAnchorChainMod)Activator.CreateInstance(plugin)))) {
-							Logger.LogWarning($"Attempted to load a duplicate plugin: {pluginData.Name} ({pluginData.GUID})");
-						}
-					}
-				}
-				catch (Exception ex) {
-					Logger.LogWarning("Error loading assembly at path " + asmPath + ": " + ex);
-				}
-			}
-		}
-
-		// Ensure all dependencies are met, and remove plugins missing dependencies
-		while (true) {
-			HashSet<ACPlugin> toRemove = new();
-
-			foreach ((ACPlugin pluginData, IAnchorChainMod _) in recognizedPlugins.Values) {
-				foreach (ACDependency dependency in pluginData.Dependencies) {
-					if (!recognizedPlugins.ContainsKey(dependency.GUID)) {
-						Logger.LogWarning($"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); missing dependency \"{dependency.GUID}\"");
-						toRemove.Add(pluginData);
-						break;
-					}
-					if (!dependency.Contains(recognizedPlugins[dependency.GUID].Item1.Version)) {
-						Logger.LogWarning($"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); mis-versioned dependency \"{dependency.GUID}\"");
-						toRemove.Add(pluginData);
-						break;
-					}
-				}
-
-				foreach (ACIncompatibility incompatibility in pluginData.Incompatibilities) {
-					if (recognizedPlugins.ContainsKey(incompatibility.GUID)) {
-						Logger.LogWarning($"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); detected incompatible mod \"{incompatibility.GUID}\"");
-					}
-					toRemove.Add(pluginData);
-					break;
-				}
-			}
-
-			if (toRemove.Count == 0) {
-				break;
-			}
-
-			foreach (ACPlugin pluginData in toRemove) {
-				recognizedPlugins.Remove(pluginData.GUID);
-			}
-		}
-
-		// Cast all preloads to postloads and postloads to preloads
-		foreach ((ACPlugin pluginData, IAnchorChainMod _) in recognizedPlugins.Values) {
-			foreach (string plugin in pluginData.Before) {
-				recognizedPlugins[plugin].Item1.After.Add(pluginData.GUID);
-			}
-
-			foreach (string plugin in pluginData.After) {
-				recognizedPlugins[plugin].Item1.Before.Add(pluginData.GUID);
-			}
-		}
-
-		// Screen for circular post loads
-		bool circularLoad = false;
-		foreach ((ACPlugin pluginData, IAnchorChainMod _) in recognizedPlugins.Values) {
-			HashSet<ACPlugin> postLoads = FindAllPostLoads(pluginData, recognizedPlugins, new());
-			if (postLoads.Contains(pluginData)) {
-				Logger.LogError($"Aborting chainload; circular load order chain detected: {postLoads}");
-				circularLoad = true;
-			}
-		}
-		if (circularLoad) { return; }
-
-		// Get first "level" of plugins with no preloads
-		HashSet<string> currentLevel = (from x in recognizedPlugins.Values where x.Item1.After.Count == 0 select x.Item1.GUID).ToHashSet() ?? new();
-		HashSet<string> alreadyLoaded = new();
-
-		while (true) {
-			if (currentLevel.Count == 0) { break; }
-
-			bool loadedOne = false;
-			HashSet<string> toLoad = new();
-			foreach (string guid in currentLevel) {
-				(ACPlugin pluginData, IAnchorChainMod plugin) = recognizedPlugins[guid];
-				if (pluginData.After.IsSubsetOf(alreadyLoaded)) {
-					try {
-						plugin.TriggerEntryPoint();
-						Logger.LogInfo($"Loaded plugin {pluginData.Name} ({pluginData.GUID})");
-						toLoad.UnionWith(pluginData.Before);
-						alreadyLoaded.Add(pluginData.GUID);
-						loadedOne = true;
-					}
-					catch (Exception e) {
-						Logger.LogError($"Error loading plugin {pluginData.Name} ({pluginData.GUID}): {e}");
-					}
-				}
-			}
-
-			currentLevel.UnionWith(toLoad);
-			currentLevel.RemoveWhere(x => alreadyLoaded.Contains(x));
-
-			if (!loadedOne) {
-				Logger.LogError($"Aborting chainload; unable to load any more plugins: {alreadyLoaded}, {currentLevel}");
-			}
-		}
-
-		Logger.LogInfo($"Loaded AnchorChain V{((BepInPlugin)Attribute.GetCustomAttribute(typeof(AnchorChainLoader), typeof(BepInPlugin))).Version}!");
-	}
-
-
-	private bool Setup()
-	{
+		var selected = PluginDirectories.Selected(directories);
 		_allDirectories.Clear();
-		foreach (var dir in PluginDirectories.Selected(FileManager.Instance.Directories)) {
-			_allDirectories.Add(dir);
-		}
-
+		_allDirectories.AddRange(selected);
 		_configPath = Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs");
+		Directory.CreateDirectory(_configPath);
+		_allDirectories.Add(new DirectoryInfo(_configPath));
 
-		if (!Directory.Exists(_configPath)) {
-			try {
-				Directory.CreateDirectory(_configPath);
-			} catch (Exception ex) {
-				Logger.LogError($"Failed to create ACConfigs: {ex}");
-				return false;
+		Dictionary<string, (ACPlugin Metadata, Type Type)> recognized = new();
+		List<ACPlugin> preferred = new();
+		HashSet<string> seenFiles = new(StringComparer.OrdinalIgnoreCase);
+
+		// The top menu entry has highest priority. Run it last unless dependencies say otherwise.
+		foreach (DirectoryInfo directory in selected.Reverse()) {
+			foreach (string path in PluginDirectories.DllFiles(directory, directories)) {
+				if (!seenFiles.Add(path) || PluginDirectories.IsLoader(path)) continue;
+				try {
+					Assembly assembly = Assembly.LoadFile(path);
+					foreach (Type type in assembly.GetExportedTypes()
+						.Where(type => !type.IsAbstract && !type.ContainsGenericParameters && typeof(IAnchorChainMod).IsAssignableFrom(type))
+						.OrderBy(type => type.FullName, StringComparer.Ordinal)) {
+						ACPlugin metadata = type.GetCustomAttribute<ACPlugin>();
+						if (metadata is null) continue;
+						if (recognized.ContainsKey(metadata.GUID)) {
+							Logger.LogWarning($"Skipping duplicate plugin {metadata.GUID} at {path}; first discovered definition wins.");
+							continue;
+						}
+						ACConfig config = type.GetCustomAttribute<ACConfig>();
+						if (config is not null && !LoadConfigs(metadata, config, new IniHandler(), new IniHandler())) continue;
+						metadata.Dependencies = new(type.GetCustomAttributes<ACDependency>());
+						metadata.Incompatibilities = new(type.GetCustomAttributes<ACIncompatibility>());
+						// ACDependency checks presence/version; only Before/After constrain initialization order.
+						metadata.Dependencies.UnionWith(metadata.Before.Select(guid => new ACDependency(guid, null, null)));
+						metadata.Dependencies.UnionWith(metadata.After.Select(guid => new ACDependency(guid, null, null)));
+						recognized.Add(metadata.GUID, (metadata, type));
+						preferred.Add(metadata);
+					}
+				}
+				catch (BadImageFormatException) {
+					// Native DLLs can accompany mods. They are not managed plugins.
+				}
+				catch (Exception error) {
+					Logger.LogWarning($"Error inspecting {path}: {error}");
+				}
 			}
 		}
 
-		_allDirectories.Add(new DirectoryInfo(_configPath));
-		return true;
-	}
-
-
-	private HashSet<ACPlugin> FindAllPostLoads(ACPlugin plugin, Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins, HashSet<ACPlugin> prev)
-	{
-		if (_postLoadsCache.TryGetValue(plugin.GUID, out HashSet<ACPlugin> cachedPostLoads)) {
-			return cachedPostLoads;
+		// Prune in rounds, so removing a dependency also removes its dependants.
+		while (true) {
+			List<ACPlugin> remove = new();
+			foreach (ACPlugin metadata in preferred.Where(plugin => recognized.ContainsKey(plugin.GUID))) {
+				ACDependency missing = metadata.Dependencies.FirstOrDefault(dependency =>
+					!recognized.TryGetValue(dependency.GUID, out var target) || !dependency.Contains(target.Metadata.Version));
+				ACIncompatibility conflict = metadata.Incompatibilities.FirstOrDefault(item => recognized.ContainsKey(item.GUID));
+				if (missing is null && conflict is null) continue;
+				Logger.LogWarning($"Skipping {metadata.Name} ({metadata.GUID}): " +
+					(missing is not null ? $"missing or mis-versioned dependency {missing.GUID}." : $"incompatible with {conflict.GUID}."));
+				remove.Add(metadata);
+			}
+			if (remove.Count == 0) break;
+			foreach (ACPlugin metadata in remove) recognized.Remove(metadata.GUID);
 		}
 
-		if (!prev.Add(plugin)) { return [plugin]; }
+		preferred.RemoveAll(plugin => !recognized.ContainsKey(plugin.GUID));
+		foreach (ACPlugin metadata in preferred)
+			foreach (string successor in metadata.Before)
+				recognized[successor].Metadata.After.Add(metadata.GUID);
 
-		HashSet<ACPlugin> allPostLoads = new();
-
-		foreach (string guid in plugin.After) {
-			allPostLoads.UnionWith(FindAllPostLoads(recognizedPlugins[guid].Item1, recognizedPlugins, prev));
+		// Sort the entire graph before calling constructors or entry points. Cycles cannot half-load a chain.
+		IReadOnlyList<ACPlugin> ordered = PluginLoadOrder.Sort(preferred);
+		HashSet<string> loaded = new(StringComparer.Ordinal);
+		foreach (ACPlugin metadata in ordered) {
+			if (!metadata.After.IsSubsetOf(loaded)) {
+				Logger.LogWarning($"Skipping {metadata.GUID}: a prerequisite failed to initialize.");
+				continue;
+			}
+			try {
+				((IAnchorChainMod)Activator.CreateInstance(recognized[metadata.GUID].Type)).TriggerEntryPoint();
+				loaded.Add(metadata.GUID);
+				Logger.LogInfo($"Loaded plugin {metadata.Name} ({metadata.GUID})");
+			}
+			catch (Exception error) {
+				Logger.LogError($"Error loading {metadata.GUID}: {error}");
+			}
 		}
-
-		_postLoadsCache[plugin.GUID] = allPostLoads;
-		return allPostLoads;
+		Logger.LogInfo($"AnchorChain loaded {loaded.Count} of {ordered.Count} eligible plugins.");
 	}
 
 

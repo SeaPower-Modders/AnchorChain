@@ -21,6 +21,9 @@ To make this as clear as possible, anything implying a dependency will be in the
 The ACDependency 
 <tooltip term="Attribute">attribute</tooltip> is AnchorChain's way of adding explicit dependencies to a plugin.
 It also allows for version-specific dependencies with SemVer.
+This checks presence and version, not initialization order. Use `before` or `after`
+when an entry point needs another plugin to have run first. Mutual presence
+dependencies remain valid when they do not create an ordering cycle.
 
 <note>The Steam Workshop does not provide a method for version-specific installation, so versioned dependencies should only be used where absolutely necessary.</note>
 <warning><code>guid</code> must never be null. This will cause AnchorChain to fail loading your plugin.</warning>
@@ -161,9 +164,22 @@ For your convenience, the ACPlugin documentation is copied below. If you need a 
 
 Since ordering plugins creates 
 <a href="Integrating-Multiple-Plugins.md#Implicit_Ordering_Dependencies">implicit dependencies</a>, we must use another method to order non-dependent plugins.
-In AnchorChain, it is best practice to create a plugin that depends on both and orders them as desired.
-Doing so introduces minimal overhead within the main plugins and allows for adding context-specific patches.
-The general structure of such a plugin would be as follows.
+Independent plugins follow the mod menu from bottom to top. The top entry has the
+last opportunity to initialize. Explicit `before` and `after` constraints take
+priority over that preference. After each plugin loads, AnchorChain selects the
+next eligible plugin using the original menu preference.
+
+Within a directory, DLL paths and exported type names sort deterministically.
+Duplicate GUIDs use the first discovered definition and produce a warning.
+Configurations keep the game's top-to-bottom file lookup priority.
+
+Ordering cycles abort the chain before any plugin constructor or entry point runs.
+A failed entry point is attempted once, and its ordering dependants are skipped.
+Independent plugins may still load. Missing or mis-versioned dependencies are
+pruned transitively. An incompatibility excludes a plugin only when its target is present.
+
+A connector plugin can still impose explicit ordering and add context-specific
+patches. Its general structure is as follows.
 
 <code-block lang="C#">
 using AnchorChain;
