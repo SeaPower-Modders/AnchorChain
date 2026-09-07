@@ -13,6 +13,12 @@ whose older preloader still invokes unchecked copies of AnchorChain. The updated
 preloader selects one checked loader and stops after invoking it. Update both DLLs
 when possible, but the loader-side selection check does not require the new preloader.
 
+Loader filenames may have a prefix, such as `TestAnchorChain.dll`. Discovery matches
+the `AnchorChain.dll` suffix, case-insensitively. The DLL must still expose
+`AnchorChain.AnchorChainLoader` implementing `IPluginLoader`.
+Plugin discovery and reload checks treat any filename containing `AnchorChain`
+and ending in `.dll` as a loader binary, also case-insensitively.
+
 ## Installing Steam Workshop Mods
 
 AnchorChain was made to make installing mods from the Steam Workshop as simple as possible. 

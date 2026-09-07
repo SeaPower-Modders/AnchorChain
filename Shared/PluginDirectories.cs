@@ -4,8 +4,9 @@ namespace AnchorChain;
 
 internal static class PluginDirectories
 {
-    internal static bool IsLoader(string path) => Path.GetFileName(path).Equals("AnchorChain.dll", StringComparison.OrdinalIgnoreCase)
-        || Path.GetFileName(path).Equals("AnchorChain.Preloader.dll", StringComparison.OrdinalIgnoreCase);
+    internal static bool IsChainLoader(string path) => Path.GetFileName(path).EndsWith("AnchorChain.dll", StringComparison.OrdinalIgnoreCase);
+    internal static bool IsLoader(string path) => Path.GetFileName(path).Contains("AnchorChain", StringComparison.OrdinalIgnoreCase)
+        && path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
 
     // IsEnabled controls checkbox editability. Locked but checked base directories remain active.
     public static IReadOnlyList<DirectoryInfo> Selected(IEnumerable<SearchDirectory> directories) => directories

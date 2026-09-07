@@ -17,8 +17,7 @@ public class AnchorChainPreloader: BaseUnityPlugin
 		var directories = FileManager.Instance.Directories.ToArray();
 		foreach (var dir in PluginDirectories.Selected(directories)) {
 			try {
-				string asmPath = PluginDirectories.DllFiles(dir, directories).FirstOrDefault(path =>
-					Path.GetFileName(path).Equals("AnchorChain.dll", StringComparison.OrdinalIgnoreCase));
+				string asmPath = PluginDirectories.DllFiles(dir, directories).FirstOrDefault(PluginDirectories.IsChainLoader);
 				if (asmPath is null) continue;
 				Assembly loaded = Assembly.LoadFile(asmPath);
 				Logger.LogInfo("Loaded assembly " + loaded.FullName);
