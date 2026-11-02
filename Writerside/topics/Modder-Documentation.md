@@ -19,7 +19,8 @@ The mod loader implements this interface, which then scans for and loads all plu
 This division of labor allows for Steam Workshop distribution and updates to the main body of AnchorChain while still maintaining its functionality.
 
 Because players install the preloader by hand and rarely update it, it is kept as small as possible: it references no game types,
-finds `AnchorChain.dll` directly on disk (the game's local mod folders and its Steam Workshop folder, newest version wins) and hands over.
+finds `AnchorChain.dll` directly on disk (the game's local mod folders and its Steam Workshop folder; only copies in mod folders
+switched on in the Mod Manager, as saved in `usersettings.ini`, count, and the newest version wins) and hands over.
 Everything that depends on the game, such as waiting until the game has listed its mod folders, lives in the mod loader,
 so game updates are handled by a Workshop update of Anchor Chain alone.
 
