@@ -1,12 +1,14 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using BepInEx;
 using SeaPower;
+using System.Collections;
 using System.Reflection;
+using UnityEngine;
 
 namespace AnchorChain;
 
 
-[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.1.0")]
+[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.2.0")]
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
 	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
@@ -14,7 +16,81 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
 
+	// Once the game has finished starting up: how long it gets to list the mod folders before we load with what is there.
+	private const float WaitForFoldersSeconds = 30f;
+
+
+	// Called by the preloader from its Awake. Since preloader 2.0.0 that can be before the game has listed its mod folders, and
+	// the game version decides when that happens (https://github.com/SeaPower-Modders/AnchorChain/issues/19), so the waiting is
+	// done here, where a Workshop update can fix it, and not in the preloader.
 	public void LoadPlugins()
+	{
+		if (ModFoldersListed()) {
+			LoadNow();
+			return;
+		}
+
+		Logger.LogInfo("The game has not listed its mod folders yet; waiting for it.");
+		GameObject host = new("AnchorChain Loader") { hideFlags = HideFlags.HideAndDontSave };
+		DontDestroyOnLoad(host);
+		host.AddComponent<CoroutineHost>().StartCoroutine(WaitAndLoad(host));
+	}
+
+
+	private IEnumerator WaitAndLoad(GameObject host)
+	{
+		// After the start-up load screen: mods started in the middle of it can keep the unit data from loading.
+		while (!StartupDone()) { yield return new WaitForSecondsRealtime(0.5f); }
+
+		float until = Time.realtimeSinceStartup + WaitForFoldersSeconds;
+		while (!ModFoldersListed() && Time.realtimeSinceStartup < until) { yield return new WaitForSecondsRealtime(0.5f); }
+
+		if (!ModFoldersListed()) {
+			Logger.LogWarning("The game did not list the mod folder of Anchor Chain itself; loading from the folders it did list.");
+		}
+
+		try {
+			if (Singleton<FileManager>.InstanceExists()) { LoadNow(); }
+			else { Logger.LogError("Anchor Chain setup failed, aborting load: the game's file manager does not exist."); }
+		}
+		finally {
+			Destroy(host);
+		}
+	}
+
+
+	// The game has listed its mod folders once the folder this AnchorChain.dll was loaded from is among them.
+	private static bool ModFoldersListed()
+	{
+		if (!Singleton<FileManager>.InstanceExists()) { return false; }
+
+		string self = Path.GetFullPath(typeof(AnchorChainLoader).Assembly.Location);
+		return FileManager.Instance.Directories.Any(dir =>
+			dir.DirectoryInfo is { Exists: true } &&
+			self.StartsWith(dir.DirectoryInfo.FullName.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+	}
+
+
+	private static bool StartupDone()
+	{
+		try {
+			return StartupDoneCore();
+		}
+		catch (Exception) {
+			// A game version where these types differ: do not wait on them.
+			return true;
+		}
+	}
+
+
+	// Apart from the caller, so that a type missing from some game version fails inside the try above, not when the caller is compiled.
+	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+	private static bool StartupDoneCore() =>
+		Singleton<UnitMetadataProvider>.InstanceExists() && Singleton<UnitMetadataProvider>.Instance.UnitData != null &&
+		Singleton<LoadScreen>.InstanceExists() && Singleton<LoadScreen>.Instance.LoadText == "Done";
+
+
+	private void LoadNow()
 	{
 		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
 		IniHandler userIni = new();
@@ -234,8 +310,8 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		}
 
 		// Open now-ensured configs
-		userIni.open(userPath);
-		defaultIni.open(defaultPath);
+		OpenIni(userIni, userPath);
+		OpenIni(defaultIni, defaultPath);
 
 		// Ensure config validity
 		foreach ((string sectionName, Dictionary<string, string> section) in defaultIni.Data) {
@@ -271,6 +347,22 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		defaultIni.saveFile(true);
 
 		return true;
+	}
+
+
+	// IniHandler.open(path, ...) gains optional parameters between game versions (Sea Power 0.8.7 has five, the public beta of
+	// 26 Oct 2026 six). A direct call binds to the full signature of the game it was built against and fails on the other one, so
+	// call whichever overload this game has, with its own defaults.
+	private static void OpenIni(IniHandler ini, string path)
+	{
+		MethodInfo open = (from m in typeof(IniHandler).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+			where m.Name == "open"
+			let p = m.GetParameters()
+			where p.Length > 0 && p[0].ParameterType == typeof(string) && p.Skip(1).All(x => x.IsOptional)
+			select m).First();
+
+		object[] args = open.GetParameters().Select(p => p.Position == 0 ? path : p.DefaultValue).ToArray();
+		open.Invoke(ini, args);
 	}
 
 
@@ -340,3 +432,7 @@ public interface IAnchorChainMod
 {
 	public void TriggerEntryPoint();
 }
+
+
+// Runs the loader's wait: the loader itself is created by the preloader, not added to a GameObject, so it cannot run coroutines.
+internal class CoroutineHost : MonoBehaviour { }
