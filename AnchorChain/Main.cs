@@ -10,9 +10,12 @@ namespace AnchorChain;
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
 	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
-	private static HashSet<DirectoryInfo> _allDirectories = new();
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
+	// IsEnabled controls checkbox editability. Locked but checked base directories remain active.
+	private static List<DirectoryInfo> SelectedDirectories => FileManager.Instance.Directories
+		.Where(dir => dir.IsChecked && dir.DirectoryInfo.Exists)
+		.Select(dir => dir.DirectoryInfo).ToList();
 
 	public void LoadPlugins()
 	{
@@ -29,18 +32,14 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
 		IniHandler userIni = new();
 		IniHandler defaultIni = new();
-		// IsEnabled controls checkbox editability. Locked but checked base directories remain active.
-		List<DirectoryInfo> selected = FileManager.Instance.Directories
-			.Where(dir => dir.IsChecked && dir.DirectoryInfo.Exists)
-			.Select(dir => dir.DirectoryInfo).ToList();
 
-		if (!Setup(selected)) {
+		if (!Setup()) {
 			Logger.LogError($"Anchor Chain setup failed, aborting load.");
 			return;
 		}
 
 		// First pass, registering plugin classes, configs, dependencies, and plugins to preload
-		foreach (DirectoryInfo dir in selected) {
+		foreach (DirectoryInfo dir in SelectedDirectories) {
 			IEnumerable<string> dllFiles = Directory.EnumerateFiles(dir.FullName, "*.dll", SearchOption.AllDirectories)
 				.OrderBy(file => file, StringComparer.OrdinalIgnoreCase).ThenBy(file => file, StringComparer.Ordinal);
 			foreach (string asmPath in dllFiles) {
@@ -174,11 +173,8 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 	}
 
 
-	private bool Setup(IEnumerable<DirectoryInfo> directories)
+	private bool Setup()
 	{
-		_allDirectories.Clear();
-		_allDirectories.UnionWith(directories);
-
 		_configPath = Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs");
 
 		if (!Directory.Exists(_configPath)) {
@@ -190,7 +186,6 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			}
 		}
 
-		_allDirectories.Add(new DirectoryInfo(_configPath));
 		return true;
 	}
 
@@ -283,15 +278,10 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 	}
 
 
-	public static string FindFile(string fileName)
-	{
-		foreach (DirectoryInfo dir in _allDirectories) {
-			string path = Path.Join(dir.FullName, fileName);
-			if (File.Exists(path)) return path;
-		}
-
-		return null;
-	}
+	public static string FindFile(string fileName) => SelectedDirectories
+		.Select(dir => Path.Join(dir.FullName, fileName))
+		.Append(Path.Join(_configPath, fileName))
+		.FirstOrDefault(File.Exists);
 }
 
 
