@@ -29,7 +29,10 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
 		IniHandler userIni = new();
 		IniHandler defaultIni = new();
-		IReadOnlyList<DirectoryInfo> selected = PluginDirectories.Selected(FileManager.Instance.Directories);
+		// IsEnabled controls checkbox editability. Locked but checked base directories remain active.
+		List<DirectoryInfo> selected = FileManager.Instance.Directories
+			.Where(dir => dir.IsChecked && dir.DirectoryInfo.Exists)
+			.Select(dir => dir.DirectoryInfo).ToList();
 
 		if (!Setup(selected)) {
 			Logger.LogError($"Anchor Chain setup failed, aborting load.");
@@ -38,7 +41,9 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 
 		// First pass, registering plugin classes, configs, dependencies, and plugins to preload
 		foreach (DirectoryInfo dir in selected) {
-			foreach (string asmPath in PluginDirectories.DllFiles(dir)) {
+			IEnumerable<string> dllFiles = Directory.EnumerateFiles(dir.FullName, "*.dll", SearchOption.AllDirectories)
+				.OrderBy(file => file, StringComparer.OrdinalIgnoreCase).ThenBy(file => file, StringComparer.Ordinal);
+			foreach (string asmPath in dllFiles) {
 				try {
 					Assembly loaded = Assembly.LoadFile(asmPath);
 					Logger.LogInfo("Loaded assembly " + loaded.FullName);
