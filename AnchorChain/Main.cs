@@ -16,7 +16,13 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 
 	public void LoadPlugins()
 	{
-		if (!PluginDirectories.IsSelected(typeof(AnchorChainLoader).Assembly.Location, FileManager.Instance.Directories)) {
+		SearchDirectory owner = null;
+		for (DirectoryInfo directory = new FileInfo(typeof(AnchorChainLoader).Assembly.Location).Directory;
+			directory is not null && owner is null; directory = directory.Parent) {
+			owner = FileManager.Instance.Directories.FirstOrDefault(dir =>
+				Path.GetRelativePath(dir.DirectoryInfo.FullName, directory.FullName) == ".");
+		}
+		if (owner is null || !owner.IsChecked || !owner.DirectoryInfo.Exists) {
 			Logger.LogInfo("AnchorChain's directory is not selected; skipping initialization.");
 			return;
 		}
