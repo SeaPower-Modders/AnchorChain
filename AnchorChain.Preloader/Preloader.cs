@@ -18,14 +18,14 @@ public class AnchorChainPreloader: BaseUnityPlugin
 			string possiblepath = Path.Combine(dir.FullName);
 
 			string[] dllFiles = Directory.GetFiles(possiblepath, "*.dll", SearchOption.AllDirectories);
-			string asmPath = (from x in dllFiles where x.EndsWith("AnchorChain.dll") select x).FirstOrDefault();
+			string? asmPath = (from x in dllFiles where x.EndsWith("AnchorChain.dll") select x).FirstOrDefault();
 			if (asmPath is null) { continue; }
 
 			try {
 				Assembly loaded = Assembly.LoadFile(asmPath);
 				Logger.LogInfo("Loaded assembly " + loaded.FullName);
 
-				Type chainLoader = (from x in loaded.GetExportedTypes()
+				Type? chainLoader = (from x in loaded.GetExportedTypes()
 					         where x.FullName != null && x.FullName.Equals("AnchorChain.AnchorChainLoader")
 					         select x).FirstOrDefault();
 
