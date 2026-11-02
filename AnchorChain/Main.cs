@@ -27,6 +27,7 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			LoadSelectedPlugins();
 		}
 		catch (Exception error) {
+			PluginRuntime.Failed = true;
 			Logger.LogError($"AnchorChain load aborted: {error}");
 		}
 	}
@@ -75,6 +76,7 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 					// Native DLLs can accompany mods. They are not managed plugins.
 				}
 				catch (Exception error) {
+					PluginRuntime.Failed = true;
 					Logger.LogWarning($"Error inspecting {path}: {error}");
 				}
 			}
@@ -110,7 +112,7 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 				continue;
 			}
 			try {
-				((IAnchorChainMod)Activator.CreateInstance(recognized[metadata.GUID].Type)).TriggerEntryPoint();
+				PluginRuntime.Start(recognized[metadata.GUID].Type);
 				loaded.Add(metadata.GUID);
 				Logger.LogInfo($"Loaded plugin {metadata.Name} ({metadata.GUID})");
 			}
