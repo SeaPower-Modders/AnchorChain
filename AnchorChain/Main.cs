@@ -33,7 +33,6 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		// First pass, registering plugin classes, configs, dependencies, and plugins to preload
 		foreach (DirectoryInfo dir in selected) {
 			foreach (string asmPath in PluginDirectories.DllFiles(dir)) {
-				if (PluginDirectories.IsLoader(asmPath)) continue;
 				try {
 					Assembly loaded = Assembly.LoadFile(asmPath);
 					Logger.LogInfo("Loaded assembly " + loaded.FullName);

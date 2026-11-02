@@ -4,9 +4,6 @@ namespace AnchorChain;
 
 internal static class PluginDirectories
 {
-    internal static bool IsLoader(string path) => Path.GetFileName(path).Contains("AnchorChain", StringComparison.OrdinalIgnoreCase)
-        && path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
-
     private static bool IsWithin(string path, DirectoryInfo dir) => path.TrimEnd(Path.DirectorySeparatorChar).StartsWith(
         dir.FullName.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
