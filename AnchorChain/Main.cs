@@ -10,7 +10,7 @@ namespace AnchorChain;
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
 	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
-	private static List<DirectoryInfo> _allDirectories = new();
+	private static HashSet<DirectoryInfo> _allDirectories = new();
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
 
