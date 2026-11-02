@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using BepInEx;
 using SeaPower;
 using System.Reflection;
@@ -9,6 +9,7 @@ namespace AnchorChain;
 [BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.1.0")]
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
+	// FindFile returns the first match, so preserve the game's directory priority.
 	private static readonly List<DirectoryInfo> _allDirectories = new();
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
