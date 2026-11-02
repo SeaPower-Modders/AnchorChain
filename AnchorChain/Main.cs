@@ -23,18 +23,16 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
 		IniHandler userIni = new();
 		IniHandler defaultIni = new();
+		IReadOnlyList<DirectoryInfo> selected = PluginDirectories.Selected(FileManager.Instance.Directories);
 
-		if (!Setup()) {
+		if (!Setup(selected)) {
 			Logger.LogError($"Anchor Chain setup failed, aborting load.");
 			return;
 		}
 
 		// First pass, registering plugin classes, configs, dependencies, and plugins to preload
-		var directories = FileManager.Instance.Directories.ToArray();
-		foreach (DirectoryInfo dir in PluginDirectories.Selected(directories)) {
-			var dllFiles = PluginDirectories.DllFiles(dir, directories);
-
-			foreach (string asmPath in dllFiles) {
+		foreach (DirectoryInfo dir in selected) {
+			foreach (string asmPath in PluginDirectories.DllFiles(dir)) {
 				if (PluginDirectories.IsLoader(asmPath)) continue;
 				try {
 					Assembly loaded = Assembly.LoadFile(asmPath);
@@ -166,12 +164,10 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 	}
 
 
-	private bool Setup()
+	private bool Setup(IEnumerable<DirectoryInfo> directories)
 	{
 		_allDirectories.Clear();
-		foreach (var dir in PluginDirectories.Selected(FileManager.Instance.Directories)) {
-			_allDirectories.Add(dir);
-		}
+		_allDirectories.UnionWith(directories);
 
 		_configPath = Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs");
 

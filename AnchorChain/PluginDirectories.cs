@@ -25,12 +25,7 @@ internal static class PluginDirectories
         return owner is not null && owner.IsChecked && owner.DirectoryInfo.Exists;
     }
 
-    internal static IEnumerable<string> DllFiles(DirectoryInfo dir, IEnumerable<SearchDirectory> dirs)
-    {
-        var children = dirs.Select(item => item.DirectoryInfo).Where(child => IsWithin(child.FullName, dir)).ToArray();
-        return Directory.EnumerateFiles(dir.FullName, "*.dll", SearchOption.AllDirectories)
-            // Registered children use their own selection and priority.
-            .Where(file => !children.Any(child => IsWithin(file, child)))
+    internal static IEnumerable<string> DllFiles(DirectoryInfo dir) =>
+        Directory.EnumerateFiles(dir.FullName, "*.dll", SearchOption.AllDirectories)
             .OrderBy(file => file, StringComparer.OrdinalIgnoreCase).ThenBy(file => file, StringComparer.Ordinal);
-    }
 }
