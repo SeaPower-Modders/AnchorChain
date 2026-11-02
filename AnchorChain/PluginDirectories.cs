@@ -8,10 +8,9 @@ internal static class PluginDirectories
         dir.FullName.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
     // IsEnabled controls checkbox editability. Locked but checked base directories remain active.
-    internal static IReadOnlyList<DirectoryInfo> Selected(IEnumerable<SearchDirectory> dirs) => dirs
+    internal static List<DirectoryInfo> Selected(IEnumerable<SearchDirectory> dirs) => dirs
         .Where(dir => dir.IsChecked && dir.DirectoryInfo.Exists)
-        .Select(dir => dir.DirectoryInfo.FullName).Distinct(StringComparer.OrdinalIgnoreCase)
-        .Select(path => new DirectoryInfo(path)).ToArray();
+        .Select(dir => dir.DirectoryInfo).ToList();
 
     internal static bool IsSelected(string file, IEnumerable<SearchDirectory> dirs)
     {
