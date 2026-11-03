@@ -2,7 +2,6 @@
 using SeaPower;
 using System.Collections;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace AnchorChain.Preloader;
@@ -11,46 +10,60 @@ namespace AnchorChain.Preloader;
 [BepInPlugin("io.github.seapower_modders.anchorchain_preloader", "AnchorChain Preloader", "1.0.0")]
 public class AnchorChainPreloader: BaseUnityPlugin
 {
-	private enum LoadResult { NotFound, Loaded, Failed }
+	// Once the game has finished starting up: how long it gets to list the mod folders before we give up.
+	private const float WaitForFoldersSeconds = 30f;
+
+	private enum Result { Loaded, NotFound, Failed }
 
 	private void Awake()
 	{
 		Logger.LogInfo("AnchorChain Preloader started!");
-		if (TryLoad() != LoadResult.NotFound) { return; }
-		Logger.LogInfo("Waiting for the game to finish starting and list its mod folders.");
+
+		// Up to Sea Power 0.8.7 the game has listed its mod folders by now. The public beta of 26 Oct 2026 lists them later
+		// (https://github.com/SeaPower-Modders/AnchorChain/issues/19), so when nothing is found yet, wait for the game
+		// instead of giving up. Where the folders are there, nothing changes: Anchor Chain starts right here, as before.
+		if (TryLoad() != Result.NotFound) { return; }
+
+		Logger.LogInfo("The game has not listed its mod folders yet; waiting for it.");
 		StartCoroutine(WaitAndLoad());
 	}
 
 	private IEnumerator WaitAndLoad()
 	{
-		// Loading plugins during startup can interrupt the game's unit loading.
+		// After the start-up load screen: mods started in the middle of it can keep the unit data from loading.
 		yield return new WaitUntil(StartupDone);
-		float deadline = Time.realtimeSinceStartup + 30f;
-		do {
-			if (TryLoad() != LoadResult.NotFound) { yield break; }
+
+		float until = Time.realtimeSinceStartup + WaitForFoldersSeconds;
+		while (Time.realtimeSinceStartup < until) {
+			if (TryLoad() != Result.NotFound) { yield break; }
 			yield return new WaitForSecondsRealtime(0.5f);
-		} while (Time.realtimeSinceStartup < deadline);
-		Logger.LogError("Could not find AnchorChain chainloader");
+		}
+
+		Logger.LogError($"Could not find AnchorChain chainloader");
 	}
 
 	private bool StartupDone()
 	{
-		try { return StartupDoneCore(); }
+		try {
+			return StartupDoneCore();
+		}
 		catch (Exception e) {
+			// A game version where these types differ: do not wait on them.
 			Logger.LogWarning($"Startup readiness check unavailable; retrying AnchorChain discovery: {e}");
 			return true;
 		}
 	}
 
-	// Keep missing game APIs inside the caller's try/catch when the runtime compiles this method.
-	[MethodImpl(MethodImplOptions.NoInlining)]
+	// Apart from the caller, so that a type missing from some game version fails inside the try above, not when the caller is compiled.
+	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
 	private static bool StartupDoneCore() =>
 		Singleton<UnitMetadataProvider>.InstanceExists() && Singleton<UnitMetadataProvider>.Instance.UnitData != null &&
 		Singleton<LoadScreen>.InstanceExists() && Singleton<LoadScreen>.Instance.LoadText == "Done";
 
-	private LoadResult TryLoad()
+	private Result TryLoad()
 	{
-		if (!Singleton<FileManager>.InstanceExists()) { return LoadResult.NotFound; }
+		if (!Singleton<FileManager>.InstanceExists()) { return Result.NotFound; }
+
 		bool loadedAnchorChain = false;
 
 		foreach (DirectoryInfo dir in FileManager.Instance.Directories.Select(dir => dir.DirectoryInfo).ToArray()) {
@@ -73,11 +86,11 @@ public class AnchorChainPreloader: BaseUnityPlugin
 			}
 			catch (Exception e) {
 				Logger.LogError($"Failed to initialize AnchorChain with error: {e}");
-				return LoadResult.Failed;
+				return Result.Failed;
 			}
 		}
 
-		return loadedAnchorChain ? LoadResult.Loaded : LoadResult.NotFound;
+		return loadedAnchorChain ? Result.Loaded : Result.NotFound;
 	}
 }
 
