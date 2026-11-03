@@ -154,7 +154,8 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			currentLevel.RemoveWhere(x => alreadyLoaded.Contains(x));
 
 			if (!loadedOne) {
-				Logger.LogError($"Aborting chainload; unable to load any more plugins: {alreadyLoaded}, {currentLevel}");
+				Logger.LogError($"Aborting chainload; unable to load any more plugins. Loaded: [{string.Join(", ", alreadyLoaded)}], not loaded: [{string.Join(", ", currentLevel)}]");
+				break;
 			}
 		}
 
