@@ -11,7 +11,7 @@ namespace AnchorChain.Preloader;
 public class AnchorChainPreloader: BaseUnityPlugin
 {
 	// Once the game has finished starting up: how long it gets to list the mod folders before we give up.
-	private const float WaitForFoldersSeconds = 30f;
+	private const float WaitForFoldersSeconds = 60f;
 
 	private enum Result { Loaded, NotFound, Failed }
 
@@ -31,7 +31,7 @@ public class AnchorChainPreloader: BaseUnityPlugin
 	private IEnumerator WaitAndLoad()
 	{
 		// After the start-up load screen: mods started in the middle of it can keep the unit data from loading.
-		while (!StartupDone()) { yield return new WaitForSecondsRealtime(0.5f); }
+		yield return new WaitUntil(StartupDone);
 
 		float until = Time.realtimeSinceStartup + WaitForFoldersSeconds;
 		while (Time.realtimeSinceStartup < until) {
@@ -42,13 +42,14 @@ public class AnchorChainPreloader: BaseUnityPlugin
 		Logger.LogError($"Could not find AnchorChain chainloader");
 	}
 
-	private static bool StartupDone()
+	private bool StartupDone()
 	{
 		try {
 			return StartupDoneCore();
 		}
-		catch (Exception) {
+		catch (Exception e) {
 			// A game version where these types differ: do not wait on them.
+			Logger.LogWarning($"Startup readiness check unavailable; retrying AnchorChain discovery: {e}");
 			return true;
 		}
 	}
@@ -65,22 +66,18 @@ public class AnchorChainPreloader: BaseUnityPlugin
 
 		bool loadedAnchorChain = false;
 
-		foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo)) {
+		foreach (DirectoryInfo dir in FileManager.Instance.Directories.Select(dir => dir.DirectoryInfo).ToArray()) {
 			if (dir is null || !dir.Exists) { continue; }
 
-			string possiblepath = Path.Combine(dir.FullName);
-
-			string[] dllFiles = Directory.GetFiles(possiblepath, "*.dll", SearchOption.AllDirectories);
-			string asmPath = (from x in dllFiles where x.EndsWith("AnchorChain.dll") select x).FirstOrDefault();
+			string[] dllFiles = Directory.GetFiles(dir.FullName, "*.dll", SearchOption.AllDirectories);
+			string asmPath = dllFiles.FirstOrDefault(file => file.EndsWith("AnchorChain.dll"));
 			if (asmPath is null) { continue; }
 
 			try {
 				Assembly loaded = Assembly.LoadFile(asmPath);
 				Logger.LogInfo("Loaded assembly " + loaded.FullName);
 
-				Type chainLoader = (from x in loaded.GetExportedTypes()
-					         where x.FullName != null && x.FullName.Equals("AnchorChain.AnchorChainLoader")
-					         select x).FirstOrDefault();
+				Type chainLoader = loaded.GetExportedTypes().FirstOrDefault(type => type.FullName == "AnchorChain.AnchorChainLoader");
 
 				if (chainLoader is null) { Logger.LogError($"AnchorChain .dll at {asmPath} missing ChainLoader"); continue; }
 
