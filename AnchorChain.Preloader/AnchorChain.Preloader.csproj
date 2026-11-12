@@ -7,17 +7,10 @@
         <LangVersion>12.0</LangVersion>
     </PropertyGroup>
 
+    <!-- No game assemblies on purpose: the preloader must survive game updates (see Preloader.cs). -->
     <ItemGroup>
-        <Reference Include="0Harmony">
-            <HintPath>..\Dll\0Harmony.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
         <Reference Include="BepInEx">
             <HintPath>..\Dll\BepInEx.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="Seapower-Scripts">
-            <HintPath>..\Dll\Seapower-Scripts.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine">

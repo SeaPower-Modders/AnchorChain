@@ -37,6 +37,11 @@
       <HintPath>..\Dll\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <!-- Needed to resolve the overloads of the game's IniHandler. -->
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>..\Dll\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
 
     <Reference Include="UnityEngine.ParticleSystemModule">
       <HintPath>..\Dll\UnityEngine.ParticleSystemModule.dll</HintPath>
