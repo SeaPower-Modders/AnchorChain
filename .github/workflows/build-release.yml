@@ -1,0 +1,105 @@
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ['V*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/V')
+    runs-on: windows-latest
+    environment: build-references
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release tag
+        if: github.ref_type == 'tag'
+        run: |
+          [xml]$project = Get-Content AnchorChain/AnchorChain.csproj
+          $version = $project.Project.PropertyGroup.Version
+          if ($env:GITHUB_REF_NAME -cne "V$version") {
+            throw "Tag $env:GITHUB_REF_NAME must match the project version V$version."
+          }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw "Release tags must point to a commit on main." }
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download game build references
+        env:
+          GH_TOKEN: ${{ secrets.ANCHORCHAIN_REFERENCES_TOKEN }}
+          REFERENCES_REPOSITORY: ${{ vars.ANCHORCHAIN_REFERENCES_REPOSITORY }}
+          REFERENCES_TAG: ${{ vars.ANCHORCHAIN_REFERENCES_TAG }}
+        run: |
+          if (!$env:GH_TOKEN -or !$env:REFERENCES_REPOSITORY -or !$env:REFERENCES_TAG) {
+            throw "Configure the build-references environment as described in the README."
+          }
+          $archive = Join-Path $env:RUNNER_TEMP 'seapower-references.zip'
+          gh release download $env:REFERENCES_TAG --repo $env:REFERENCES_REPOSITORY --pattern seapower-references.zip --output $archive
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $references = Join-Path $env:RUNNER_TEMP 'seapower-references'
+          Expand-Archive -LiteralPath $archive -DestinationPath $references
+          $names = 'Seapower-Scripts.dll', 'Noesis.NoesisGUI.dll', 'UnityEngine.dll', 'UnityEngine.CoreModule.dll', 'UnityEngine.ParticleSystemModule.dll'
+          foreach ($name in $names) {
+            Copy-Item -LiteralPath (Join-Path $references $name) -Destination Dll
+          }
+
+      - name: Build AnchorChain and preloader
+        run: dotnet build AnchorChain/AnchorChain.csproj --configuration Release
+
+      - name: Package release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $bepInEx = Join-Path $env:RUNNER_TEMP 'BepInEx_win_x64_5.4.23.2.zip'
+          gh release download v5.4.23.2 --repo BepInEx/BepInEx --pattern BepInEx_win_x64_5.4.23.2.zip --output $bepInEx
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-FileHash -LiteralPath $bepInEx).Hash -ne 'F752CE4E838F4C305B9DA1404B6745F2CFF23B8BFD494F79F0C84D0A01F59B46') {
+            throw 'Unexpected BepInEx archive SHA-256.'
+          }
+          $package = Join-Path $env:RUNNER_TEMP 'ac-preloader'
+          Expand-Archive -LiteralPath $bepInEx -DestinationPath $package
+          $plugins = Join-Path $package 'BepInEx/plugins'
+          New-Item -ItemType Directory -Path $plugins -Force | Out-Null
+          $preloader = 'AnchorChain.Preloader/bin/Release/netstandard2.1/AnchorChain.Preloader.dll'
+          $loader = 'AnchorChain/bin/Release/netstandard2.1/AnchorChain.dll'
+          Copy-Item -LiteralPath $preloader -Destination $plugins
+          $artifacts = (New-Item -ItemType Directory -Path artifacts -Force).FullName
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($package, (Join-Path $artifacts 'ACPreloader.zip'))
+          Compress-Archive -LiteralPath $loader, $preloader -DestinationPath (Join-Path $artifacts 'dev.zip')
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: AnchorChain
+          path: |
+            artifacts/ACPreloader.zip
+            artifacts/dev.zip
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: AnchorChain
+          path: artifacts
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME artifacts/ACPreloader.zip artifacts/dev.zip --repo $env:GITHUB_REPOSITORY --verify-tag --generate-notes --title "Anchor Chain $env:GITHUB_REF_NAME"
