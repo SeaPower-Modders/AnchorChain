@@ -13,7 +13,6 @@ jobs:
   build:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/V')
     runs-on: windows-latest
-    environment: build-references
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,33 +35,21 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Download game build references
-        env:
-          GH_TOKEN: ${{ secrets.ANCHORCHAIN_REFERENCES_TOKEN }}
         run: |
-          if (!$env:GH_TOKEN) {
-            throw "Set ANCHORCHAIN_REFERENCES_TOKEN in the build-references environment."
-          }
-          $referenceRepository = "${env:GITHUB_REPOSITORY}-references"
           $archive = Join-Path $env:RUNNER_TEMP 'seapower-references.zip'
-          gh release download '0.9.0-261111' --repo $referenceRepository --pattern seapower-references.zip --output $archive
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $references = Join-Path $env:RUNNER_TEMP 'seapower-references'
-          Expand-Archive -LiteralPath $archive -DestinationPath $references
-          $names = 'Seapower-Scripts.dll', 'Noesis.NoesisGUI.dll', 'UnityEngine.dll', 'UnityEngine.CoreModule.dll', 'UnityEngine.ParticleSystemModule.dll'
-          foreach ($name in $names) {
-            Copy-Item -LiteralPath (Join-Path $references $name) -Destination Dll
+          Invoke-WebRequest -Uri 'https://github.com/SeaPower-Modders/AnchorChain-references/releases/download/0.9.0-261111/seapower-references.zip' -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive).Hash -ne '3BA399DDE743A16355A09CE3212FE2B527C670A0F32E19FB53223B101FFC8261') {
+            throw 'Unexpected Sea Power reference archive SHA-256.'
           }
+          Expand-Archive -LiteralPath $archive -DestinationPath Dll -Force
 
       - name: Build AnchorChain and preloader
         run: dotnet build AnchorChain/AnchorChain.csproj --configuration Release
 
       - name: Package release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           $bepInEx = Join-Path $env:RUNNER_TEMP 'BepInEx_win_x64_5.4.23.2.zip'
-          gh release download v5.4.23.2 --repo BepInEx/BepInEx --pattern BepInEx_win_x64_5.4.23.2.zip --output $bepInEx
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Invoke-WebRequest -Uri 'https://github.com/BepInEx/BepInEx/releases/download/v5.4.23.2/BepInEx_win_x64_5.4.23.2.zip' -OutFile $bepInEx
           if ((Get-FileHash -LiteralPath $bepInEx).Hash -ne 'F752CE4E838F4C305B9DA1404B6745F2CFF23B8BFD494F79F0C84D0A01F59B46') {
             throw 'Unexpected BepInEx archive SHA-256.'
           }

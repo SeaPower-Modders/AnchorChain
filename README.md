@@ -6,7 +6,7 @@
 
 The **Build and release** workflow builds both DLLs on pushes to `main` and when run manually on `main`. Each build uploads `ACPreloader.zip` with the Windows x64 BepInEx installer and `dev.zip` with both AnchorChain DLLs. Pushing a tag such as `V1.2.0` publishes those same ZIPs to GitHub Releases. The tag must match the project version and point to a commit on `main`.
 
-CI uses the [private Sea Power reference bundle](https://github.com/SeaPower-Modders/AnchorChain-references/releases/tag/0.9.0-261111). To configure or rotate access, [create a fine-grained token](https://github.com/settings/personal-access-tokens/new?name=AnchorChain%20CI%20references&target_name=SeaPower-Modders&contents=read) for only `AnchorChain-references` with Contents read access. Save it as `ANCHORCHAIN_REFERENCES_TOKEN` in AnchorChain's [`build-references` Actions environment](https://github.com/SeaPower-Modders/AnchorChain/settings/environments).
+CI downloads the pinned [Sea Power reference bundle](https://github.com/SeaPower-Modders/AnchorChain-references/releases/tag/0.9.0-261111) and checks its SHA-256 before building. No setup is required.
 
 # Included Software
 
