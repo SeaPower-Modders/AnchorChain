@@ -18,8 +18,8 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 
 	public void LoadPlugins()
 	{
-		SearchDirectory owner = null;
-		for (DirectoryInfo directory = new FileInfo(typeof(AnchorChainLoader).Assembly.Location).Directory;
+		SearchDirectory? owner = null;
+		for (DirectoryInfo? directory = new FileInfo(typeof(AnchorChainLoader).Assembly.Location).Directory;
 			directory is not null && owner is null; directory = directory.Parent) {
 			owner = FileManager.Instance.Directories.FirstOrDefault(dir =>
 				Path.GetRelativePath(dir.DirectoryInfo.FullName, directory.FullName) == ".");
