@@ -6,7 +6,7 @@
 
 The **Build and release** workflow builds both DLLs on pushes to `main` and when run manually on `main`. Each build uploads `ACPreloader.zip` with the Windows x64 BepInEx installer and `dev.zip` with both AnchorChain DLLs. Pushing a tag such as `V1.2.0` publishes those same ZIPs to GitHub Releases. The tag must match the project version and point to a commit on `main`.
 
-Before the first run, create a `build-references` Actions environment restricted to `main` and version tags. In a private repository, attach `seapower-references.zip` to a release. Put these DLLs from the same supported Sea Power installation's `Sea Power_Data/Managed` folder at the ZIP root:
+For CI setup, create the private repository `SeaPower-Modders/AnchorChain-references` and publish a release tagged `0.9.0-261111` with a `seapower-references.zip` asset. Put these DLLs from that Sea Power build's `Sea Power_Data/Managed` folder at the ZIP root:
 
 - `Seapower-Scripts.dll`
 - `Noesis.NoesisGUI.dll`
@@ -14,7 +14,7 @@ Before the first run, create a `build-references` Actions environment restricted
 - `UnityEngine.CoreModule.dll`
 - `UnityEngine.ParticleSystemModule.dll`
 
-Set the environment variables `ANCHORCHAIN_REFERENCES_REPOSITORY` to `owner/repo` and `ANCHORCHAIN_REFERENCES_TAG` to that release tag. Set the `ANCHORCHAIN_REFERENCES_TOKEN` secret to a token with read access to Contents in the private reference repository. The reference DLLs are used only for compilation. For a local build, copy those same files into `Dll/` and run `dotnet build AnchorChain/AnchorChain.csproj -c Release`.
+In AnchorChain, create the `build-references` Actions environment for `main` and version tags. Add one secret, `ANCHORCHAIN_REFERENCES_TOKEN`, with Contents read access to the private repository. The workflow derives the repository name by appending `-references` to the current repository and pins the Sea Power release tag in [the workflow](.github/workflows/build-release.yml).
 
 # Included Software
 
