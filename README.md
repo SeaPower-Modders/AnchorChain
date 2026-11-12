@@ -4,9 +4,7 @@
 
 ## Build and release automation
 
-The **Build and release** workflow builds both DLLs on pushes to `main` and when run manually on `main`. Each build uploads `ACPreloader.zip` with the Windows x64 BepInEx installer and `dev.zip` with both AnchorChain DLLs. Pushing a tag such as `V1.2.0` publishes those same ZIPs to GitHub Releases. The tag must match the project version and point to a commit on `main`.
-
-CI downloads the pinned [Sea Power reference bundle](https://github.com/SeaPower-Modders/AnchorChain-references/releases/tag/0.9.0-261111) and checks its SHA-256 before building. No setup is required.
+The **Build and release** workflow uploads `ACPreloader.zip` and `dev.zip` on pushes to `main` and manual runs on `main`. To publish both ZIPs to GitHub Releases, push a tag such as `V1.2.0` that matches the project version on `main`.
 
 # Included Software
 
