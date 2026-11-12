@@ -5,16 +5,29 @@ using System.Reflection;
 namespace AnchorChain;
 
 
-[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.1.0")]
+[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.2.0")]
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
 	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
-	private static HashSet<DirectoryInfo> _allDirectories = new();
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
+	// IsEnabled controls checkbox editability. Locked but checked base directories remain active.
+	private static List<DirectoryInfo> SelectedDirectories => FileManager.Instance.Directories
+		.Where(dir => dir.IsChecked && dir.DirectoryInfo.Exists)
+		.Select(dir => dir.DirectoryInfo).ToList();
 
 	public void LoadPlugins()
 	{
+		SearchDirectory owner = null;
+		for (DirectoryInfo directory = new FileInfo(typeof(AnchorChainLoader).Assembly.Location).Directory;
+			directory is not null && owner is null; directory = directory.Parent) {
+			owner = FileManager.Instance.Directories.FirstOrDefault(dir =>
+				Path.GetRelativePath(dir.DirectoryInfo.FullName, directory.FullName) == ".");
+		}
+		if (owner is null || !owner.IsChecked || !owner.DirectoryInfo.Exists) {
+			Logger.LogInfo("AnchorChain's directory is not selected; skipping initialization.");
+			return;
+		}
 		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
 		IniHandler userIni = new();
 		IniHandler defaultIni = new();
@@ -25,11 +38,9 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		}
 
 		// First pass, registering plugin classes, configs, dependencies, and plugins to preload
-		foreach (DirectoryInfo dir in _allDirectories) {
-			string possiblePath = Path.Combine(dir.FullName);
-
-			string[] dllFiles = Directory.GetFiles(possiblePath, "*.dll", SearchOption.AllDirectories);
-
+		foreach (DirectoryInfo dir in SelectedDirectories) {
+			IEnumerable<string> dllFiles = Directory.EnumerateFiles(dir.FullName, "*.dll", SearchOption.AllDirectories)
+				.OrderBy(file => file, StringComparer.OrdinalIgnoreCase).ThenBy(file => file, StringComparer.Ordinal);
 			foreach (string asmPath in dllFiles) {
 				try {
 					Assembly loaded = Assembly.LoadFile(asmPath);
@@ -153,7 +164,9 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			currentLevel.RemoveWhere(x => alreadyLoaded.Contains(x));
 
 			if (!loadedOne) {
-				Logger.LogError($"Aborting chainload; unable to load any more plugins: {alreadyLoaded}, {currentLevel}");
+				Logger.LogError($"Aborting chainload; unable to load any more plugins. Loaded: [{string.Join(", ", alreadyLoaded)}], not loaded: [{string.Join(", ", currentLevel)}]");
+				// Without this the loop goes round again for ever, and the game freezes at the first plugin that fails to load.
+				break;
 			}
 		}
 
@@ -163,16 +176,11 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 
 	private bool Setup()
 	{
-		foreach (var dir in FileManager.Instance.Directories.ToList().ConvertAll(dir => dir.DirectoryInfo)) {
-			_allDirectories.Add(dir);
-		}
-
 		_configPath = Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs");
 
 		if (!Directory.Exists(_configPath)) {
 			try {
 				Directory.CreateDirectory(_configPath);
-				_allDirectories.Add(new DirectoryInfo(_configPath));
 			} catch (Exception ex) {
 				Logger.LogError($"Failed to create ACConfigs: {ex}");
 				return false;
@@ -271,15 +279,10 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 	}
 
 
-	public static string? FindFile(string fileName)
-	{
-		foreach (DirectoryInfo dir in _allDirectories) {
-			string path = Path.Join(dir.FullName, fileName);
-			if (File.Exists(path)) return path;
-		}
-
-		return null;
-	}
+	public static string? FindFile(string fileName) => SelectedDirectories
+		.Select(dir => Path.Join(dir.FullName, fileName))
+		.Append(Path.Join(_configPath, fileName))
+		.FirstOrDefault(File.Exists);
 }
 
 
