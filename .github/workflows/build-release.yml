@@ -10,26 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  check-bepinex:
-    name: Check BepInEx archive
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/V')
-    runs-on: windows-latest
-    steps:
-      - name: Download and verify BepInEx
-        run: |
-          Invoke-WebRequest -Uri 'https://github.com/BepInEx/BepInEx/releases/download/v5.4.23.2/BepInEx_win_x64_5.4.23.2.zip' -OutFile BepInEx.zip
-          if ((Get-FileHash -LiteralPath BepInEx.zip).Hash -ne 'F752CE4E838F4C305B9DA1404B6745F2CFF23B8BFD494F79F0C84D0A01F59B46') {
-            throw 'Unexpected BepInEx archive SHA-256.'
-          }
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: BepInEx
-          path: BepInEx.zip
-          if-no-files-found: error
-
   build:
-    needs: check-bepinex
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/V')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -61,15 +43,13 @@ jobs:
       - name: Build AnchorChain and preloader
         run: dotnet build AnchorChain/AnchorChain.csproj --configuration Release
 
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: BepInEx
-          path: ${{ runner.temp }}
-
       - name: Package release assets
         run: |
+          $bepInEx = Get-Content .github/bepinex.json -Raw | ConvertFrom-Json
+          $archive = Join-Path $env:RUNNER_TEMP 'BepInEx.zip'
+          Invoke-WebRequest -Uri $bepInEx.url -OutFile $archive
           $package = Join-Path $env:RUNNER_TEMP 'ac-preloader'
-          Expand-Archive -LiteralPath (Join-Path $env:RUNNER_TEMP 'BepInEx.zip') -DestinationPath $package
+          Expand-Archive -LiteralPath $archive -DestinationPath $package
           $plugins = Join-Path $package 'BepInEx/plugins'
           New-Item -ItemType Directory -Path $plugins -Force | Out-Null
           $preloader = 'AnchorChain.Preloader/bin/Release/netstandard2.1/AnchorChain.Preloader.dll'
