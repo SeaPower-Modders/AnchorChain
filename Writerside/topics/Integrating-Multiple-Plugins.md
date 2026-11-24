@@ -21,7 +21,7 @@ To make this as clear as possible, anything implying a dependency will be in the
 The ACDependency 
 <tooltip term="Attribute">attribute</tooltip> is AnchorChain's way of adding explicit dependencies to a plugin.
 It also allows for version-specific dependencies with SemVer.
-This checks presence and version, not initialization order. Use `before` or `after`
+This checks presence and version. Use `before` or `after`
 when an entry point needs another plugin to have run first. Mutual presence
 dependencies remain valid when they do not create an ordering cycle.
 
@@ -30,7 +30,7 @@ dependencies remain valid when they do not create an ordering cycle.
 <br/>
 
 <code-block lang="C#">
-public class ACDependency([NotNull] string guid, string minVersion, string maxVersion)
+public class ACDependency(string guid, string? min, string? max)
 </code-block>
 
 <procedure title="Arguments" collapsible="true" type="choices">
@@ -40,14 +40,14 @@ public class ACDependency([NotNull] string guid, string minVersion, string maxVe
 The GUID of the dependency as specified in its `ACPlugin` attribute. 
 </step>
 <step>
-<code>string minVersion</code>
+<code>string? min</code>
 
 The minimum version of the dependency, as specified in its `ACPlugin` attribute. 
 If this is set to null, it will be assumed that there is no minimum version.
 This must be in a format acceptable by `System.Version`.
 </step>
 <step>
-<code>string maxVersion</code>
+<code>string? max</code>
 
 The maximum version of the dependency, as specified in its `ACPlugin` attribute.
 If this is set to null, it will be assumed that there is no maximum version.
@@ -59,7 +59,7 @@ This must be in a format acceptable by `System.Version`.
 <tab title="Example">
 To add <code>other-plugin</code> as a versionless dependency to the NewPlugin class we created in
 <a href="Writing-A-Basic-Plugin.md"/>, we can add the line 
-<code>[ACDependency("&lt;GUID of plugin&gt;")]</code> as seen below.
+<code>[ACDependency("&lt;GUID of plugin&gt;", null, null)]</code> as seen below.
 <br/>
 <code-block lang="C#">
 using AnchorChain;
@@ -68,7 +68,7 @@ using UnityEngine;
 namespace NewPlugin;
 
 <![CDATA[[ACPlugin("io.github.your-url.new-plugin", "New Plugin", "0.1.0")]]]>
-<![CDATA[[ACDependency("io.github.other-creator.other-plugin")]]]>
+<![CDATA[[ACDependency("io.github.other-creator.other-plugin", null, null)]]]>
 public class NewPlugin : IAnchorChainMod {
     public void TriggerEntryPoint() {
         Debug.Log("Hello Anchor Chain!");
@@ -105,7 +105,7 @@ It does not allow for version-specific incompatibility.
 <warning><code>guid</code> must never be null. This will cause AnchorChain to fail loading your plugin.</warning>
 <br/>
 <code-block lang="C#">
-public class ACIncompatibility([NotNull] string guid)
+public class ACIncompatibility(string guid)
 </code-block>
 
 <procedure title="Arguments" collapsible="true" type="choices">
@@ -146,8 +146,7 @@ Intentionally using this method is highly discouraged, as it leaves little user 
 </warning>
 
 When plugin load order is resolved, AnchorChain screens for any "ordering loops" formed by two plugins that both want to load before or after the other.
-If AnchorChain detects an ordering loop, it will not load either plugin, as the ordering is understood as a hard dependency as discussed 
-<a href="Integrating-Multiple-Plugins.md#Implicit_Ordering_Dependencies">here</a>.
+An ordering loop aborts the chain before AnchorChain calls any plugin constructor or entry point.
 
 ## Ordering Dependency Loading {id="Ordering_Dependency_Loading"}
 <link-summary>Ordering Dependency Loading Documentation</link-summary>
@@ -170,10 +169,9 @@ priority over that preference. After each plugin loads, AnchorChain selects the
 next eligible plugin using the original menu preference.
 
 Within a directory, DLL paths and exported type names sort deterministically.
-Duplicate GUIDs use the first discovered definition and produce a warning.
+Duplicate GUIDs use the first definition accepted during discovery and produce a warning.
 Configurations keep the game's top-to-bottom file lookup priority.
 
-Ordering cycles abort the chain before any plugin constructor or entry point runs.
 A failed entry point is attempted once, and its ordering dependants are skipped.
 Independent plugins may still load. Missing or mis-versioned dependencies are
 pruned transitively. An incompatibility excludes a plugin only when its target is present.
@@ -194,8 +192,8 @@ namespace NewPlugin;
     ["io.github.other-creator.first-plugin"], 
     ["io.github.other-creator.other-plugin"]
 )]]]>
-<![CDATA[[ACDependency("io.github.other-creator.first-plugin")]]]>
-<![CDATA[[ACDependency("io.github.other-creator.other-plugin")]]]>
+<![CDATA[[ACDependency("io.github.other-creator.first-plugin", null, null)]]]>
+<![CDATA[[ACDependency("io.github.other-creator.other-plugin", null, null)]]]>
 public class NewPlugin : IAnchorChainMod {
     public void TriggerEntryPoint() {
         // Other patching here if necessary

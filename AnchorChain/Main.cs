@@ -41,7 +41,7 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		// The top menu entry has highest priority. Run it last unless dependencies say otherwise.
 		foreach (DirectoryInfo directory in PluginDirectories.Selected(directories).Reverse()) {
 			foreach (string path in PluginDirectories.DllFiles(directory, directories)) {
-				if (Path.GetRelativePath(path, loaderPath) == ".") continue;
+				if (string.Equals(path, loaderPath, StringComparison.OrdinalIgnoreCase)) continue;
 				try {
 					Assembly assembly = Assembly.LoadFile(path);
 					foreach (Type type in assembly.GetExportedTypes()
@@ -76,24 +76,29 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		// Prune in rounds, so removing a dependency also removes its dependants.
 		while (true) {
 			List<ACPlugin> remove = new();
-			foreach (ACPlugin metadata in preferred.Where(plugin => recognized.ContainsKey(plugin.GUID))) {
+			foreach (ACPlugin metadata in preferred) {
 				ACDependency? missing = metadata.Dependencies.FirstOrDefault(dependency =>
 					!recognized.TryGetValue(dependency.GUID, out var target) || !dependency.Contains(target.Metadata.Version));
 				ACIncompatibility? conflict = metadata.Incompatibilities.FirstOrDefault(item => recognized.ContainsKey(item.GUID));
-				string? reason = missing is not null ? $"missing or mis-versioned dependency {missing.GUID}"
-					: conflict is not null ? $"incompatible with {conflict.GUID}" : null;
+				string? reason = (missing, conflict) switch {
+					({ } dependency, _) => $"missing or mis-versioned dependency {dependency.GUID}",
+					(_, { } incompatible) => $"incompatible with {incompatible.GUID}",
+					_ => null
+				};
 				if (reason is null) continue;
 				Logger.LogWarning($"Skipping {metadata.Name} ({metadata.GUID}): {reason}.");
 				remove.Add(metadata);
 			}
 			if (remove.Count == 0) break;
 			foreach (ACPlugin metadata in remove) recognized.Remove(metadata.GUID);
+			preferred.RemoveAll(plugin => !recognized.ContainsKey(plugin.GUID));
 		}
 
-		preferred.RemoveAll(plugin => !recognized.ContainsKey(plugin.GUID));
-		foreach (ACPlugin metadata in preferred)
-			foreach (string successor in metadata.Before)
+		foreach (ACPlugin metadata in preferred) {
+			foreach (string successor in metadata.Before) {
 				recognized[successor].Metadata.After.Add(metadata.GUID);
+			}
+		}
 
 		// Sort the entire graph before calling constructors or entry points. Cycles cannot half-load a chain.
 		IReadOnlyList<ACPlugin> ordered = PluginLoadOrder.Sort(preferred);
