@@ -3,9 +3,9 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>disable</Nullable>
+    <Nullable>enable</Nullable>
     <LangVersion>12.0</LangVersion>
-    <Version>1.1.0</Version>
+    <Version>1.2.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,6 +38,10 @@
       <Private>False</Private>
     </Reference>
 
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>..\Dll\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   
 </Project>

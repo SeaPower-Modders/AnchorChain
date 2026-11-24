@@ -1,0 +1,28 @@
+name: Check BepInEx archive
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify BepInEx checksum
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download and verify BepInEx
+        run: |
+          $bepInEx = Get-Content .github/bepinex.json -Raw | ConvertFrom-Json
+          $archive = Join-Path $env:RUNNER_TEMP 'BepInEx.zip'
+          Invoke-WebRequest -Uri $bepInEx.url -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive).Hash -ne $bepInEx.sha256) {
+            throw 'Unexpected BepInEx archive SHA-256.'
+          }

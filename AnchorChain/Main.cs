@@ -1,66 +1,59 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using BepInEx;
+﻿using BepInEx;
 using SeaPower;
 using System.Reflection;
 
 namespace AnchorChain;
 
 
-[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.1.0")]
+[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.2.1")]
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
-	// FindFile returns the first match, so preserve the game's directory priority.
-	private static readonly List<DirectoryInfo> _allDirectories = new();
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
 	private static bool _initialized;
 
 	public void LoadPlugins()
 	{
-		if (!PluginDirectories.IsSelected(typeof(AnchorChainLoader).Assembly.Location, FileManager.Instance.Directories)) {
+		var directories = FileManager.Instance.Directories.ToArray();
+		if (!PluginDirectories.IsSelected(typeof(AnchorChainLoader).Assembly.Location, directories)) {
 			Logger.LogInfo("AnchorChain's directory is not selected; skipping initialization.");
 			return;
 		}
 		if (_initialized) return;
 		_initialized = true;
 		try {
-			LoadSelectedPlugins();
+			LoadSelectedPlugins(directories);
 		}
 		catch (Exception error) {
 			Logger.LogError($"AnchorChain load aborted: {error}");
 		}
 	}
 
-	private void LoadSelectedPlugins()
+	private void LoadSelectedPlugins(SearchDirectory[] directories)
 	{
-		var directories = FileManager.Instance.Directories.ToArray();
-		var selected = PluginDirectories.Selected(directories);
-		_allDirectories.Clear();
-		_allDirectories.AddRange(selected);
 		_configPath = Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs");
 		Directory.CreateDirectory(_configPath);
-		_allDirectories.Add(new DirectoryInfo(_configPath));
 
 		Dictionary<string, (ACPlugin Metadata, Type Type)> recognized = new();
 		List<ACPlugin> preferred = new();
-		HashSet<string> seenFiles = new(StringComparer.OrdinalIgnoreCase);
+		string loaderPath = typeof(AnchorChainLoader).Assembly.Location;
 
 		// The top menu entry has highest priority. Run it last unless dependencies say otherwise.
-		foreach (DirectoryInfo directory in selected.Reverse()) {
+		foreach (DirectoryInfo directory in PluginDirectories.Selected(directories).Reverse()) {
 			foreach (string path in PluginDirectories.DllFiles(directory, directories)) {
-				if (!seenFiles.Add(path) || PluginDirectories.IsLoader(path)) continue;
+				if (Path.GetRelativePath(path, loaderPath) == ".") continue;
 				try {
 					Assembly assembly = Assembly.LoadFile(path);
 					foreach (Type type in assembly.GetExportedTypes()
 						.Where(type => !type.IsAbstract && !type.ContainsGenericParameters && typeof(IAnchorChainMod).IsAssignableFrom(type))
 						.OrderBy(type => type.FullName, StringComparer.Ordinal)) {
-						ACPlugin metadata = type.GetCustomAttribute<ACPlugin>();
+						ACPlugin? metadata = type.GetCustomAttribute<ACPlugin>();
 						if (metadata is null) continue;
 						if (recognized.ContainsKey(metadata.GUID)) {
 							Logger.LogWarning($"Skipping duplicate plugin {metadata.GUID} at {path}; first discovered definition wins.");
 							continue;
 						}
-						ACConfig config = type.GetCustomAttribute<ACConfig>();
+						ACConfig? config = type.GetCustomAttribute<ACConfig>();
 						if (config is not null && !LoadConfigs(metadata, config, new IniHandler(), new IniHandler())) continue;
 						metadata.Dependencies = new(type.GetCustomAttributes<ACDependency>());
 						metadata.Incompatibilities = new(type.GetCustomAttributes<ACIncompatibility>());
@@ -84,12 +77,13 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 		while (true) {
 			List<ACPlugin> remove = new();
 			foreach (ACPlugin metadata in preferred.Where(plugin => recognized.ContainsKey(plugin.GUID))) {
-				ACDependency missing = metadata.Dependencies.FirstOrDefault(dependency =>
+				ACDependency? missing = metadata.Dependencies.FirstOrDefault(dependency =>
 					!recognized.TryGetValue(dependency.GUID, out var target) || !dependency.Contains(target.Metadata.Version));
-				ACIncompatibility conflict = metadata.Incompatibilities.FirstOrDefault(item => recognized.ContainsKey(item.GUID));
-				if (missing is null && conflict is null) continue;
-				Logger.LogWarning($"Skipping {metadata.Name} ({metadata.GUID}): " +
-					(missing is not null ? $"missing or mis-versioned dependency {missing.GUID}." : $"incompatible with {conflict.GUID}."));
+				ACIncompatibility? conflict = metadata.Incompatibilities.FirstOrDefault(item => recognized.ContainsKey(item.GUID));
+				string? reason = missing is not null ? $"missing or mis-versioned dependency {missing.GUID}"
+					: conflict is not null ? $"incompatible with {conflict.GUID}" : null;
+				if (reason is null) continue;
+				Logger.LogWarning($"Skipping {metadata.Name} ({metadata.GUID}): {reason}.");
 				remove.Add(metadata);
 			}
 			if (remove.Count == 0) break;
@@ -110,7 +104,10 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 				continue;
 			}
 			try {
-				((IAnchorChainMod)Activator.CreateInstance(recognized[metadata.GUID].Type)).TriggerEntryPoint();
+				if (Activator.CreateInstance(recognized[metadata.GUID].Type) is not IAnchorChainMod plugin) {
+					throw new InvalidOperationException($"Could not construct {metadata.GUID}.");
+				}
+				plugin.TriggerEntryPoint();
 				loaded.Add(metadata.GUID);
 				Logger.LogInfo($"Loaded plugin {metadata.Name} ({metadata.GUID})");
 			}
@@ -124,8 +121,8 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 
 	private bool LoadConfigs(ACPlugin pluginData, ACConfig configData, IniHandler userIni, IniHandler defaultIni)
 	{
-		string userPath = FindFile(pluginData.GUID + "_user.ini");
-		string defaultPath = FindFile(pluginData.GUID + ".ini");
+		string? userPath = FindFile(pluginData.GUID + "_user.ini");
+		string? defaultPath = FindFile(pluginData.GUID + ".ini");
 
 		// Any config-using plugin must have a default config
 		if (defaultPath is null) {
@@ -191,35 +188,30 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 	}
 
 
-	public static string FindFile(string fileName)
-	{
-		foreach (DirectoryInfo dir in _allDirectories) {
-			string path = Path.Join(dir.FullName, fileName);
-			if (File.Exists(path)) return path;
-		}
-
-		return null;
-	}
+	public static string? FindFile(string fileName) => PluginDirectories.Selected(FileManager.Instance.Directories)
+		.Select(dir => Path.Join(dir.FullName, fileName))
+		.Append(Path.Join(_configPath, fileName))
+		.FirstOrDefault(File.Exists);
 }
 
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-public class ACPlugin([NotNull] string guid, string name, string version, string[] before = null, string[] after = null)
+public class ACPlugin(string guid, string? name, string? version, string[]? before = null, string[]? after = null)
 	: Attribute, IEquatable<ACPlugin>, IEquatable<string>
 {
-	[NotNull] public string GUID { get; } = guid;
-	[NotNull] public string Name { get; } = name ?? "";
-	[NotNull] public Version Version { get; } = new(version ?? "1.0");
-	[NotNull] public HashSet<string> Before { get; } = before is null ? [] : [..before];
-	[NotNull] public HashSet<string> After { get; } = after is null ? [] : [..after];
-	[NotNull] public HashSet<ACDependency> Dependencies { get; internal set; } = new();
-	[NotNull] public HashSet<ACIncompatibility> Incompatibilities { get; internal set;  } = new();
+	public string GUID { get; } = guid;
+	public string Name { get; } = name ?? "";
+	public Version Version { get; } = new(version ?? "1.0");
+	public HashSet<string> Before { get; } = before is null ? [] : [..before];
+	public HashSet<string> After { get; } = after is null ? [] : [..after];
+	public HashSet<ACDependency> Dependencies { get; internal set; } = new();
+	public HashSet<ACIncompatibility> Incompatibilities { get; internal set;  } = new();
 
 
-	public bool Equals(ACPlugin other) => other is not null && GUID == other.GUID;
+	public bool Equals(ACPlugin? other) => other is not null && GUID == other.GUID;
 
 
-	public bool Equals(string other) => other is not null && GUID == other;
+	public bool Equals(string? other) => other is not null && GUID == other;
 
 
 	public override int GetHashCode() => GUID.GetHashCode();
@@ -227,20 +219,20 @@ public class ACPlugin([NotNull] string guid, string name, string version, string
 
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-public class ACDependency([NotNull] string guid, string min, string max) : Attribute
+public class ACDependency(string guid, string? min, string? max) : Attribute
 {
 	public string GUID { get; } = guid;
-	public Version MinVersion { get; } = min is null ? null : new Version(min);
-	public Version MaxVersion { get; } = max is null ? null : new Version(max);
+	public Version? MinVersion { get; } = min is null ? null : new Version(min);
+	public Version? MaxVersion { get; } = max is null ? null : new Version(max);
 
 
-	public bool Contains([NotNull] Version version) =>
+	public bool Contains(Version version) =>
 		(MinVersion is null || version >= MinVersion) && (MaxVersion is null || version <= MaxVersion);
 }
 
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-public class ACIncompatibility([NotNull] string guid) : Attribute
+public class ACIncompatibility(string guid) : Attribute
 {
 	public string GUID { get; } = guid;
 }
