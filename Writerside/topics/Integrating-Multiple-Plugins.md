@@ -161,23 +161,13 @@ For your convenience, the ACPlugin documentation is copied below. If you need a 
 
 ### Ordering Independent Plugins
 
-Since ordering plugins creates 
-<a href="Integrating-Multiple-Plugins.md#Implicit_Ordering_Dependencies">implicit dependencies</a>, we must use another method to order non-dependent plugins.
-Independent plugins follow the mod menu from bottom to top. The top entry has the
-last opportunity to initialize. Explicit `before` and `after` constraints take
-priority over that preference. After each plugin loads, AnchorChain selects the
-next eligible plugin using the original menu preference.
+AnchorChain chooses the next eligible plugin from the bottom of the Mods menu up.
+Explicit `before` and `after` constraints take priority. Within a mod, DLL paths
+and exported type names determine the order. If two plugins share a GUID, the
+first accepted definition wins. Config files still resolve from the top down.
 
-Within a directory, DLL paths and exported type names sort deterministically.
-Duplicate GUIDs use the first definition accepted during discovery and produce a warning.
-Configurations keep the game's top-to-bottom file lookup priority.
-
-A failed entry point is attempted once, and its ordering dependants are skipped.
-Independent plugins may still load. Missing or mis-versioned dependencies are
-pruned transitively. An incompatibility excludes a plugin only when its target is present.
-
-A connector plugin can still impose explicit ordering and add context-specific
-patches. Its general structure is as follows.
+If a plugin fails to initialize, plugins that must load after it are skipped.
+A connector plugin can impose ordering when its targets need to stay independent.
 
 <code-block lang="C#">
 using AnchorChain;
