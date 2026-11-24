@@ -21,13 +21,16 @@ To make this as clear as possible, anything implying a dependency will be in the
 The ACDependency 
 <tooltip term="Attribute">attribute</tooltip> is AnchorChain's way of adding explicit dependencies to a plugin.
 It also allows for version-specific dependencies with SemVer.
+This checks presence and version. Use `before` or `after`
+when an entry point needs another plugin to have run first. Mutual presence
+dependencies remain valid when they do not create an ordering cycle.
 
 <note>The Steam Workshop does not provide a method for version-specific installation, so versioned dependencies should only be used where absolutely necessary.</note>
 <warning><code>guid</code> must never be null. This will cause AnchorChain to fail loading your plugin.</warning>
 <br/>
 
 <code-block lang="C#">
-public class ACDependency([NotNull] string guid, string minVersion, string maxVersion)
+public class ACDependency(string guid, string? min, string? max)
 </code-block>
 
 <procedure title="Arguments" collapsible="true" type="choices">
@@ -37,14 +40,14 @@ public class ACDependency([NotNull] string guid, string minVersion, string maxVe
 The GUID of the dependency as specified in its `ACPlugin` attribute. 
 </step>
 <step>
-<code>string minVersion</code>
+<code>string? min</code>
 
 The minimum version of the dependency, as specified in its `ACPlugin` attribute. 
 If this is set to null, it will be assumed that there is no minimum version.
 This must be in a format acceptable by `System.Version`.
 </step>
 <step>
-<code>string maxVersion</code>
+<code>string? max</code>
 
 The maximum version of the dependency, as specified in its `ACPlugin` attribute.
 If this is set to null, it will be assumed that there is no maximum version.
@@ -56,7 +59,7 @@ This must be in a format acceptable by `System.Version`.
 <tab title="Example">
 To add <code>other-plugin</code> as a versionless dependency to the NewPlugin class we created in
 <a href="Writing-A-Basic-Plugin.md"/>, we can add the line 
-<code>[ACDependency("&lt;GUID of plugin&gt;")]</code> as seen below.
+<code>[ACDependency("&lt;GUID of plugin&gt;", null, null)]</code> as seen below.
 <br/>
 <code-block lang="C#">
 using AnchorChain;
@@ -65,7 +68,7 @@ using UnityEngine;
 namespace NewPlugin;
 
 <![CDATA[[ACPlugin("io.github.your-url.new-plugin", "New Plugin", "0.1.0")]]]>
-<![CDATA[[ACDependency("io.github.other-creator.other-plugin")]]]>
+<![CDATA[[ACDependency("io.github.other-creator.other-plugin", null, null)]]]>
 public class NewPlugin : IAnchorChainMod {
     public void TriggerEntryPoint() {
         Debug.Log("Hello Anchor Chain!");
@@ -102,7 +105,7 @@ It does not allow for version-specific incompatibility.
 <warning><code>guid</code> must never be null. This will cause AnchorChain to fail loading your plugin.</warning>
 <br/>
 <code-block lang="C#">
-public class ACIncompatibility([NotNull] string guid)
+public class ACIncompatibility(string guid)
 </code-block>
 
 <procedure title="Arguments" collapsible="true" type="choices">
@@ -143,8 +146,7 @@ Intentionally using this method is highly discouraged, as it leaves little user 
 </warning>
 
 When plugin load order is resolved, AnchorChain screens for any "ordering loops" formed by two plugins that both want to load before or after the other.
-If AnchorChain detects an ordering loop, it will not load either plugin, as the ordering is understood as a hard dependency as discussed 
-<a href="Integrating-Multiple-Plugins.md#Implicit_Ordering_Dependencies">here</a>.
+An ordering loop aborts the chain before AnchorChain calls any plugin constructor or entry point.
 
 ## Ordering Dependency Loading {id="Ordering_Dependency_Loading"}
 <link-summary>Ordering Dependency Loading Documentation</link-summary>
@@ -159,11 +161,13 @@ For your convenience, the ACPlugin documentation is copied below. If you need a 
 
 ### Ordering Independent Plugins
 
-Since ordering plugins creates 
-<a href="Integrating-Multiple-Plugins.md#Implicit_Ordering_Dependencies">implicit dependencies</a>, we must use another method to order non-dependent plugins.
-In AnchorChain, it is best practice to create a plugin that depends on both and orders them as desired.
-Doing so introduces minimal overhead within the main plugins and allows for adding context-specific patches.
-The general structure of such a plugin would be as follows.
+AnchorChain chooses the next eligible plugin from the bottom of the Mods menu up.
+Explicit `before` and `after` constraints take priority. Within a mod, DLL paths
+and exported type names determine the order. If two plugins share a GUID, the
+first accepted definition wins. Config files still resolve from the top down.
+
+If a plugin fails to initialize, plugins that must load after it are skipped.
+A connector plugin can impose ordering when its targets need to stay independent.
 
 <code-block lang="C#">
 using AnchorChain;
@@ -178,8 +182,8 @@ namespace NewPlugin;
     ["io.github.other-creator.first-plugin"], 
     ["io.github.other-creator.other-plugin"]
 )]]]>
-<![CDATA[[ACDependency("io.github.other-creator.first-plugin")]]]>
-<![CDATA[[ACDependency("io.github.other-creator.other-plugin")]]]>
+<![CDATA[[ACDependency("io.github.other-creator.first-plugin", null, null)]]]>
+<![CDATA[[ACDependency("io.github.other-creator.other-plugin", null, null)]]]>
 public class NewPlugin : IAnchorChainMod {
     public void TriggerEntryPoint() {
         // Other patching here if necessary

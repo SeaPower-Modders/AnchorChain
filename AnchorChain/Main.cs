@@ -5,208 +5,161 @@ using System.Reflection;
 namespace AnchorChain;
 
 
-[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.2.0")]
+[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.2.1")]
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
-	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
 	private static string _configPath = string.Empty;
 	private static readonly HashSet<string> ReservedSectionKeys = ["AnchorChain.State", "AnchorChain.ResetValues"];
-	// IsEnabled controls checkbox editability. Locked but checked base directories remain active.
-	private static List<DirectoryInfo> SelectedDirectories => FileManager.Instance.Directories
-		.Where(dir => dir.IsChecked && dir.DirectoryInfo.Exists)
-		.Select(dir => dir.DirectoryInfo).ToList();
+	private static bool _initialized;
 
 	public void LoadPlugins()
 	{
-		SearchDirectory? owner = null;
-		for (DirectoryInfo? directory = new FileInfo(typeof(AnchorChainLoader).Assembly.Location).Directory;
-			directory is not null && owner is null; directory = directory.Parent) {
-			owner = FileManager.Instance.Directories.FirstOrDefault(dir =>
-				Path.GetRelativePath(dir.DirectoryInfo.FullName, directory.FullName) == ".");
-		}
-		if (owner is null || !owner.IsChecked || !owner.DirectoryInfo.Exists) {
+		var directories = FileManager.Instance.Directories.ToArray();
+		string loaderPath = typeof(AnchorChainLoader).Assembly.Location;
+		var owner = directories.Where(dir => IsWithin(loaderPath, dir.DirectoryInfo.FullName))
+			.OrderByDescending(dir => dir.DirectoryInfo.FullName.Length).FirstOrDefault();
+		if (owner is null || !IsActive(owner)) {
 			Logger.LogInfo("AnchorChain's directory is not selected; skipping initialization.");
 			return;
 		}
-		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
-		IniHandler userIni = new();
-		IniHandler defaultIni = new();
-
-		if (!Setup()) {
-			Logger.LogError($"Anchor Chain setup failed, aborting load.");
-			return;
+		if (_initialized) return;
+		_initialized = true;
+		try {
+			LoadSelectedPlugins(directories, loaderPath);
 		}
-
-		// First pass, registering plugin classes, configs, dependencies, and plugins to preload
-		foreach (DirectoryInfo dir in SelectedDirectories) {
-			IEnumerable<string> dllFiles = Directory.EnumerateFiles(dir.FullName, "*.dll", SearchOption.AllDirectories)
-				.OrderBy(file => file, StringComparer.OrdinalIgnoreCase).ThenBy(file => file, StringComparer.Ordinal);
-			foreach (string asmPath in dllFiles) {
-				try {
-					Assembly loaded = Assembly.LoadFile(asmPath);
-					Logger.LogInfo("Loaded assembly " + loaded.FullName);
-
-					foreach (Type plugin in (from x in loaded.GetExportedTypes() where x.GetInterfaces().Contains(typeof(IAnchorChainMod)) select x))
-					{
-						// All valid plugins should be annotated with ACPlugin
-						ACPlugin? pluginData = (ACPlugin?)Attribute.GetCustomAttribute(plugin, typeof(ACPlugin));
-						if (pluginData is null) continue;
-
-						ACConfig? configData = (ACConfig?)Attribute.GetCustomAttribute(plugin, typeof(ACConfig));
-
-						if (configData is not null && !LoadConfigs(pluginData, configData, userIni, defaultIni)) continue;
-
-						// Set dependencies and incompatibilities
-						pluginData.Dependencies =
-							new(Attribute.GetCustomAttributes(plugin, typeof(ACDependency)).Cast<ACDependency>() ?? []);
-						pluginData.Incompatibilities =
-							new(Attribute.GetCustomAttributes(plugin, typeof(ACIncompatibility)).Cast<ACIncompatibility>() ?? []);
-
-						// Ensure all preloads and postloads are dependencies
-						pluginData.Dependencies.UnionWith(pluginData.Before.Select(x => new ACDependency(x, null, null)));
-						pluginData.Dependencies.UnionWith(pluginData.After.Select(x => new ACDependency(x, null, null)));
-
-						if (!recognizedPlugins.TryAdd(pluginData.GUID, (pluginData, (IAnchorChainMod)Activator.CreateInstance(plugin)))) {
-							Logger.LogWarning($"Attempted to load a duplicate plugin: {pluginData.Name} ({pluginData.GUID})");
-						}
-					}
-				}
-				catch (Exception ex) {
-					Logger.LogWarning("Error loading assembly at path " + asmPath + ": " + ex);
-				}
-			}
+		catch (Exception error) {
+			Logger.LogError($"AnchorChain load aborted: {error}");
 		}
-
-		// Ensure all dependencies are met, and remove plugins missing dependencies
-		while (true) {
-			HashSet<ACPlugin> toRemove = new();
-
-			foreach ((ACPlugin pluginData, IAnchorChainMod _) in recognizedPlugins.Values) {
-				foreach (ACDependency dependency in pluginData.Dependencies) {
-					if (!recognizedPlugins.ContainsKey(dependency.GUID)) {
-						Logger.LogWarning($"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); missing dependency \"{dependency.GUID}\"");
-						toRemove.Add(pluginData);
-						break;
-					}
-					if (!dependency.Contains(recognizedPlugins[dependency.GUID].Item1.Version)) {
-						Logger.LogWarning($"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); mis-versioned dependency \"{dependency.GUID}\"");
-						toRemove.Add(pluginData);
-						break;
-					}
-				}
-
-				foreach (ACIncompatibility incompatibility in pluginData.Incompatibilities) {
-					if (recognizedPlugins.ContainsKey(incompatibility.GUID)) {
-						Logger.LogWarning($"Skipping mod \"{pluginData.Name}\" ({pluginData.GUID}); detected incompatible mod \"{incompatibility.GUID}\"");
-					}
-					toRemove.Add(pluginData);
-					break;
-				}
-			}
-
-			if (toRemove.Count == 0) {
-				break;
-			}
-
-			foreach (ACPlugin pluginData in toRemove) {
-				recognizedPlugins.Remove(pluginData.GUID);
-			}
-		}
-
-		// Cast all preloads to postloads and postloads to preloads
-		foreach ((ACPlugin pluginData, IAnchorChainMod _) in recognizedPlugins.Values) {
-			foreach (string plugin in pluginData.Before) {
-				recognizedPlugins[plugin].Item1.After.Add(pluginData.GUID);
-			}
-
-			foreach (string plugin in pluginData.After) {
-				recognizedPlugins[plugin].Item1.Before.Add(pluginData.GUID);
-			}
-		}
-
-		// Screen for circular post loads
-		bool circularLoad = false;
-		foreach ((ACPlugin pluginData, IAnchorChainMod _) in recognizedPlugins.Values) {
-			HashSet<ACPlugin> postLoads = FindAllPostLoads(pluginData, recognizedPlugins, new());
-			if (postLoads.Contains(pluginData)) {
-				Logger.LogError($"Aborting chainload; circular load order chain detected: {postLoads}");
-				circularLoad = true;
-			}
-		}
-		if (circularLoad) { return; }
-
-		// Get first "level" of plugins with no preloads
-		HashSet<string> currentLevel = (from x in recognizedPlugins.Values where x.Item1.After.Count == 0 select x.Item1.GUID).ToHashSet() ?? new();
-		HashSet<string> alreadyLoaded = new();
-
-		while (true) {
-			if (currentLevel.Count == 0) { break; }
-
-			bool loadedOne = false;
-			HashSet<string> toLoad = new();
-			foreach (string guid in currentLevel) {
-				(ACPlugin pluginData, IAnchorChainMod plugin) = recognizedPlugins[guid];
-				if (pluginData.After.IsSubsetOf(alreadyLoaded)) {
-					try {
-						plugin.TriggerEntryPoint();
-						Logger.LogInfo($"Loaded plugin {pluginData.Name} ({pluginData.GUID})");
-						toLoad.UnionWith(pluginData.Before);
-						alreadyLoaded.Add(pluginData.GUID);
-						loadedOne = true;
-					}
-					catch (Exception e) {
-						Logger.LogError($"Error loading plugin {pluginData.Name} ({pluginData.GUID}): {e}");
-					}
-				}
-			}
-
-			currentLevel.UnionWith(toLoad);
-			currentLevel.RemoveWhere(x => alreadyLoaded.Contains(x));
-
-			if (!loadedOne) {
-				Logger.LogError($"Aborting chainload; unable to load any more plugins. Loaded: [{string.Join(", ", alreadyLoaded)}], not loaded: [{string.Join(", ", currentLevel)}]");
-				// Without this the loop goes round again for ever, and the game freezes at the first plugin that fails to load.
-				break;
-			}
-		}
-
-		Logger.LogInfo($"Loaded AnchorChain V{((BepInPlugin)Attribute.GetCustomAttribute(typeof(AnchorChainLoader), typeof(BepInPlugin))).Version}!");
 	}
 
-
-	private bool Setup()
+	private void LoadSelectedPlugins(SearchDirectory[] directories, string loaderPath)
 	{
 		_configPath = Path.Join(Globals._streamingAssetsPath.FullName, "ACConfigs");
+		Directory.CreateDirectory(_configPath);
 
-		if (!Directory.Exists(_configPath)) {
+		Dictionary<string, (ACPlugin Metadata, Type Type)> recognized = new();
+		List<ACPlugin> preferred = new();
+
+		// Discover from the bottom of the menu. File lookup still follows the menu from the top.
+		var paths = SelectedDirectories(directories).Reverse()
+			.SelectMany(directory => DllFiles(directory, directories));
+		foreach (string path in paths) {
+			if (string.Equals(path, loaderPath, StringComparison.OrdinalIgnoreCase)) continue;
 			try {
-				Directory.CreateDirectory(_configPath);
-			} catch (Exception ex) {
-				Logger.LogError($"Failed to create ACConfigs: {ex}");
-				return false;
+				var types = Assembly.LoadFile(path).GetExportedTypes()
+					.Where(type => !type.IsAbstract && !type.ContainsGenericParameters && typeof(IAnchorChainMod).IsAssignableFrom(type))
+					.OrderBy(type => type.FullName, StringComparer.Ordinal);
+				foreach (Type type in types) {
+					var metadata = type.GetCustomAttribute<ACPlugin>();
+					if (metadata is null) continue;
+					if (recognized.ContainsKey(metadata.GUID)) {
+						Logger.LogWarning($"Skipping duplicate plugin {metadata.GUID} at {path}; first discovered definition wins.");
+						continue;
+					}
+					var config = type.GetCustomAttribute<ACConfig>();
+					if (config is not null && !LoadConfigs(metadata, config, new IniHandler(), new IniHandler())) continue;
+
+					metadata.Dependencies = new(type.GetCustomAttributes<ACDependency>());
+					metadata.Dependencies.UnionWith(metadata.Before.Concat(metadata.After)
+						.Select(guid => new ACDependency(guid, null, null)));
+					metadata.Incompatibilities = new(type.GetCustomAttributes<ACIncompatibility>());
+					recognized.Add(metadata.GUID, (metadata, type));
+					preferred.Add(metadata);
+				}
+			}
+			catch (BadImageFormatException) {
+				// Mods can ship native DLLs.
+			}
+			catch (Exception error) {
+				Logger.LogWarning($"Error inspecting {path}: {error}");
 			}
 		}
 
-		return true;
+		// Prune in rounds, so removing a dependency also removes its dependants.
+		while (true) {
+			List<ACPlugin> remove = new();
+			foreach (ACPlugin metadata in preferred) {
+				ACDependency? missing = metadata.Dependencies.FirstOrDefault(dependency =>
+					!recognized.TryGetValue(dependency.GUID, out var target) || !dependency.Contains(target.Metadata.Version));
+				ACIncompatibility? conflict = metadata.Incompatibilities.FirstOrDefault(item => recognized.ContainsKey(item.GUID));
+				if (missing is null && conflict is null) continue;
+				string reason = missing is not null ? $"missing or mis-versioned dependency {missing.GUID}"
+					: $"incompatible with {conflict!.GUID}";
+				Logger.LogWarning($"Skipping {metadata.Name} ({metadata.GUID}): {reason}.");
+				remove.Add(metadata);
+			}
+			if (remove.Count == 0) break;
+			foreach (ACPlugin metadata in remove) recognized.Remove(metadata.GUID);
+			preferred.RemoveAll(plugin => !recognized.ContainsKey(plugin.GUID));
+		}
+
+		foreach (ACPlugin metadata in preferred) {
+			foreach (string successor in metadata.Before) {
+				recognized[successor].Metadata.After.Add(metadata.GUID);
+			}
+		}
+
+		var ordered = ResolveLoadOrder(preferred);
+		HashSet<string> loaded = new(StringComparer.Ordinal);
+		foreach (ACPlugin metadata in ordered) {
+			if (!metadata.After.IsSubsetOf(loaded)) {
+				Logger.LogWarning($"Skipping {metadata.GUID}: a prerequisite failed to initialize.");
+				continue;
+			}
+			try {
+				var plugin = (IAnchorChainMod)Activator.CreateInstance(recognized[metadata.GUID].Type)!;
+				plugin.TriggerEntryPoint();
+				loaded.Add(metadata.GUID);
+				Logger.LogInfo($"Loaded plugin {metadata.Name} ({metadata.GUID})");
+			}
+			catch (Exception error) {
+				Logger.LogError($"Error loading {metadata.GUID}: {error}");
+			}
+		}
+		Logger.LogInfo($"AnchorChain loaded {loaded.Count} of {ordered.Count} eligible plugins.");
 	}
 
-
-	private HashSet<ACPlugin> FindAllPostLoads(ACPlugin plugin, Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins, HashSet<ACPlugin> prev)
+	// Resolve every edge before running any plugin code. Recheck menu priority after each choice.
+	private static List<ACPlugin> ResolveLoadOrder(List<ACPlugin> preferred)
 	{
-		if (_postLoadsCache.TryGetValue(plugin.GUID, out HashSet<ACPlugin> cachedPostLoads)) {
-			return cachedPostLoads;
+		List<ACPlugin> pending = new(preferred);
+		List<ACPlugin> ordered = new(preferred.Count);
+		HashSet<string> scheduled = new(StringComparer.Ordinal);
+		while (pending.Count > 0) {
+			int index = pending.FindIndex(plugin => plugin.After.IsSubsetOf(scheduled));
+			if (index < 0) {
+				throw new InvalidOperationException("Circular or unresolved plugin load order: "
+					+ string.Join(", ", pending.Select(plugin => plugin.GUID)));
+			}
+			var plugin = pending[index];
+			pending.RemoveAt(index);
+			ordered.Add(plugin);
+			scheduled.Add(plugin.GUID);
 		}
+		return ordered;
+	}
 
-		if (!prev.Add(plugin)) { return [plugin]; }
+	// A locked checkbox can still be checked.
+	private static bool IsActive(SearchDirectory dir) => dir.IsChecked && dir.DirectoryInfo.Exists;
 
-		HashSet<ACPlugin> allPostLoads = new();
+	private static IEnumerable<string> SelectedDirectories(IEnumerable<SearchDirectory> directories) => directories
+		.Where(IsActive).Select(dir => dir.DirectoryInfo.FullName).Distinct(StringComparer.OrdinalIgnoreCase);
 
-		foreach (string guid in plugin.After) {
-			allPostLoads.UnionWith(FindAllPostLoads(recognizedPlugins[guid].Item1, recognizedPlugins, prev));
-		}
+	private static IEnumerable<string> DllFiles(string directory, IEnumerable<SearchDirectory> directories)
+	{
+		// Each registered child directory has its own selection and priority.
+		var children = directories.Select(dir => dir.DirectoryInfo.FullName)
+			.Where(child => IsWithin(child, directory)).ToArray();
+		return Directory.EnumerateFiles(directory, "*.dll", SearchOption.AllDirectories)
+			.Where(file => !children.Any(child => IsWithin(file, child)))
+			.OrderBy(file => file, StringComparer.OrdinalIgnoreCase).ThenBy(file => file, StringComparer.Ordinal);
+	}
 
-		_postLoadsCache[plugin.GUID] = allPostLoads;
-		return allPostLoads;
+	private static bool IsWithin(string path, string directory)
+	{
+		string relative = Path.GetRelativePath(directory, path);
+		return relative != "." && relative != ".." && !Path.IsPathRooted(relative)
+			&& !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
 	}
 
 
@@ -279,8 +232,8 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 	}
 
 
-	public static string? FindFile(string fileName) => SelectedDirectories
-		.Select(dir => Path.Join(dir.FullName, fileName))
+	public static string? FindFile(string fileName) => SelectedDirectories(FileManager.Instance.Directories)
+		.Select(dir => Path.Join(dir, fileName))
 		.Append(Path.Join(_configPath, fileName))
 		.FirstOrDefault(File.Exists);
 }
