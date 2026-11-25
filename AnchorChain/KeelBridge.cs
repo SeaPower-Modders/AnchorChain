@@ -19,8 +19,9 @@ namespace AnchorChain;
 /// BepInEx\plugins and its takeover patcher into BepInEx\patchers (recorded in keel-setup.txt, so Keel's setup can undo it),
 /// then switches Keel on at the top of the game's mod list and offers a restart. A step that fails takes the others back.</item>
 /// <item>Not now: nothing changes; the box comes again at the next start.</item>
-/// <item>Don't show this again: the box's middle button, used as a tick. Ticked, the box stays away until ShowSwitchOffer is
-/// set back in Anchor Chain's config file.</item>
+/// <item>Don't show this again: a check box next to the buttons (the game's own check box style; where the box's layout
+/// differs, its middle button stands in as a tick). Ticked, the box stays away until ShowSwitchOffer is set back in Anchor
+/// Chain's config file.</item>
 /// </list>
 /// Anchor Chain itself loads every mod as before at this start. Nothing here can stop that: every step is caught, and a game
 /// build whose UI differs only loses the box. Players who have Keel already (its stub is in BepInEx\plugins) never see it.
@@ -46,7 +47,7 @@ internal sealed class KeelBridge : MonoBehaviour
 		"• Keel checks each mod against your game version and names the one that breaks\n" +
 		"• Switch to Keel: subscribes to it, installs it and restarts the game. Keel's setup (KeelSetup.exe) can undo it\n" +
 		"• Not now: Anchor Chain keeps working, and this asks again at the next start\n" +
-		"• Don't show this again: click it to tick it, and this offer stays away";
+		"• Don't show this again: tick it below, and this offer stays away";
 
 	private static readonly ManualLogSource Log = BepInEx.Logging.Logger.CreateLogSource("Anchor Chain → Keel");
 	private static bool begun;
@@ -148,14 +149,73 @@ internal sealed class KeelBridge : MonoBehaviour
 			Set("CancelCommandLabel", cancelLabel);
 			Set("CancelCommand", new DelegateCommand(_ => { CloseBox(); if (cancel != null) { Run(cancel); } }));
 		}
+		DelegateCommand? tick = null;
 		if (withTick) {
-			// The game's message box has three buttons and no check box: the middle one is the tick, its label says whether it is set.
+			// The game's message box has three buttons and no check box: the middle one is the tick until a real check box replaces it.
+			tick = new DelegateCommand(_ => Run(ToggleTick));
 			Set("MiddleCommandLabel", TickLabel());
-			Set("MiddleCommand", new DelegateCommand(_ => Run(ToggleTick)));
+			Set("MiddleCommand", tick);
 		}
 		context = MainMenuView.Instance;
 		box = b;
 		WindowHostCommands.OpenWindowCommand.Execute(b, (Noesis.UIElement)context);
+		if (tick != null) { StartCoroutine(AddCheckBox(b, tick)); }
+	}
+
+	// ---- the check box ----
+
+	// The box's view is drawn a frame or two after it opens: look for its tick button for up to a second.
+	private IEnumerator AddCheckBox(object shown, DelegateCommand tick)
+	{
+		for (float until = Time.realtimeSinceStartup + 1f; Time.realtimeSinceStartup < until; ) {
+			yield return null;
+			if (box != shown) { yield break; }    // closed or replaced meanwhile
+			try {
+				if (PutCheckBox(tick)) { yield break; }
+			}
+			catch (Exception e) {
+				Log.LogInfo($"No check box in the offer, the tick button stays: {e.Message}");
+				yield break;
+			}
+		}
+		Log.LogInfo("No check box in the offer (the box's layout differs): the tick button stays.");
+	}
+
+	/// <summary>Puts a check box where the tick button is and hides that button. False while the button is not drawn yet.</summary>
+	[MethodImpl(MethodImplOptions.NoInlining)]
+	private bool PutCheckBox(DelegateCommand tick)
+	{
+		Noesis.DependencyObject root = (Noesis.DependencyObject)context!;
+		for (Noesis.DependencyObject? up = root; up != null; up = Noesis.VisualTreeHelper.GetParent(up)) { root = up; }
+		if (FindButton(root, tick) is not { } button) { return false; }
+		if (Noesis.VisualTreeHelper.GetParent(button) is not Noesis.Panel row) { throw new InvalidOperationException("the buttons sit in no panel"); }
+
+		var check = new Noesis.CheckBox {
+			Content = "Don't show this again",
+			IsChecked = showOffer is { Value: false },
+			VerticalAlignment = Noesis.VerticalAlignment.Center,
+			Margin = new Noesis.Thickness(0, 0, 16, 0),
+		};
+		if (button.Foreground != null) { check.Foreground = button.Foreground; }
+		check.Click += (_, _) => Run(() => SetShow(check.IsChecked != true));
+		row.Children.Insert(row.Children.IndexOf(button), check);
+		button.Visibility = Noesis.Visibility.Collapsed;
+		Log.LogInfo("Check box added to the offer.");
+		return true;
+	}
+
+	// Breadth first through the whole UI: the window host is not below the main menu view. Bounded, so a large tree cannot stall a frame.
+	private static Noesis.Button? FindButton(Noesis.DependencyObject root, DelegateCommand tick)
+	{
+		var queue = new Queue<Noesis.DependencyObject>();
+		queue.Enqueue(root);
+		for (int seen = 0; queue.Count > 0 && seen < 20000; seen++) {
+			Noesis.DependencyObject node = queue.Dequeue();
+			if (node is Noesis.Button b && ReferenceEquals(b.Command, tick)) { return b; }
+			int n = Noesis.VisualTreeHelper.GetChildrenCount(node);
+			for (int i = 0; i < n; i++) { queue.Enqueue(Noesis.VisualTreeHelper.GetChild(node, i)); }
+		}
+		return null;
 	}
 
 	private static string TickLabel() => showOffer is { Value: false } ? TickOn : TickOff;
@@ -164,14 +224,20 @@ internal sealed class KeelBridge : MonoBehaviour
 	private void ToggleTick()
 	{
 		if (showOffer == null) { return; }
-		showOffer.Value = !showOffer.Value;
-		Log.LogInfo(showOffer.Value ? "Tick taken off: the offer comes again at the next start." : "Ticked: the offer will not be shown again.");
+		SetShow(!showOffer.Value);
 		try {
 			box?.GetType().GetProperty("MiddleCommandLabel", Any)?.SetValue(box, TickLabel());
 		}
 		catch (Exception) {
 			// the box is gone; the setting is saved all the same
 		}
+	}
+
+	private static void SetShow(bool show)
+	{
+		if (showOffer == null || showOffer.Value == show) { return; }
+		showOffer.Value = show;
+		Log.LogInfo(show ? "Tick taken off: the offer comes again at the next start." : "Ticked: the offer will not be shown again.");
 	}
 
 	private const System.Reflection.BindingFlags Any =
