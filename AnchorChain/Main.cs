@@ -5,7 +5,7 @@ using System.Reflection;
 namespace AnchorChain;
 
 
-[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.2.0")]
+[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.3.0")]
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
 	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();
@@ -28,6 +28,9 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			Logger.LogInfo("AnchorChain's directory is not selected; skipping initialization.");
 			return;
 		}
+		// Anchor Chain continues as R.A.T.S. Keel: offer the switch on the main menu (KeelBridge.cs). It never stops the load below.
+		KeelBridge.Begin();
+
 		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
 		IniHandler userIni = new();
 		IniHandler defaultIni = new();
