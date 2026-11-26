@@ -43,11 +43,11 @@ internal sealed class KeelBridge : MonoBehaviour
 
 	private const string OfferText =
 		"Anchor Chain continues as R.A.T.S. Keel, made together with Anchor Chain's authors.\n\n" +
-		"• Your mods keep working: Keel runs every Anchor Chain mod as it is\n" +
-		"• Keel checks each mod against your game version and names the one that breaks\n" +
-		"• Switch to Keel: subscribes to it, installs it and restarts the game. Keel's setup (KeelSetup.exe) can undo it\n" +
-		"• Not now: Anchor Chain keeps working, and this asks again at the next start\n" +
-		"• Don't show this again: tick it below, and this offer stays away";
+		"• Keel is fully backwards compatible, so your mods keep working.\n" +
+		"• Keel provides more complex update checks and can detect which mods are most likely broken by an update.\n" +
+		"• Switch to Keel: subscribes to it, installs it and restarts the game.\n" +
+		"• Not now: defers this message to the next launch.\n" +
+		"• Don't show this again: tick it below, and this message will not appear.";
 
 	private static readonly ManualLogSource Log = BepInEx.Logging.Logger.CreateLogSource("Anchor Chain → Keel");
 	private static bool begun;
