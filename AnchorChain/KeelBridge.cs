@@ -6,29 +6,16 @@ using SeapowerUI;
 using SeapowerUI.ViewModels;
 using System.Collections;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace AnchorChain;
 
-/// <summary>
-/// Anchor Chain continues as R.A.T.S. Keel (agreed with Anchor Chain's authors, November 2026). Once per game start, on the
-/// main menu, a game message box offers the switch:
-/// <list type="bullet">
-/// <item>Switch to Keel: subscribes to Keel's Workshop item, waits for Steam to download it, puts Keel's stub into
-/// BepInEx\plugins and its takeover patcher into BepInEx\patchers (recorded in keel-setup.txt, so Keel's setup can undo it),
-/// then switches Keel on at the top of the game's mod list and offers a restart. A step that fails takes the others back.</item>
-/// <item>Not now: nothing changes; the box comes again at the next start.</item>
-/// <item>Don't show this again: a check box next to the buttons (the game's own check box style; where the box's layout
-/// differs, its middle button stands in as a tick). Ticked, the box stays away until ShowSwitchOffer is set back in Anchor
-/// Chain's config file.</item>
-/// </list>
-/// Anchor Chain itself loads every mod as before at this start. Nothing here can stop that: every step is caught, and a game
-/// build whose UI differs only loses the box. Players who have Keel already (its stub is in BepInEx\plugins) never see it.
-/// </summary>
-internal sealed class KeelBridge : MonoBehaviour
+/// <summary>Offers the switch to Keel on the main menu and coordinates installation and restart.</summary>
+internal class KeelBridge : MonoBehaviour
 {
-	internal const ulong KeelItem = 3835527459;
+	private const ulong KeelItem = 3835527459;
 	private const string StubName = "SeaPowerKeel.Stub.dll";
 	private const string StubFolder = "copy-to-BepInEx-plugins";
 	private const string PatcherName = "SeaPowerKeel.Patcher.dll";
@@ -38,8 +25,6 @@ internal sealed class KeelBridge : MonoBehaviour
 	private const float DownloadSeconds = 300f;
 	private const float BrokenSeconds = 15f;     // installed per Steam but no stub this long: a damaged copy, not a slow one
 	private const string ConfigName = "io.github.seapower_modders.anchorchain.cfg";
-	private const string TickOff = "[ ] Don't show this again";
-	private const string TickOn = "[x] Don't show this again";
 
 	private const string OfferText =
 		"Anchor Chain continues as R.A.T.S. Keel, made together with Anchor Chain's authors.\n\n" +
@@ -57,6 +42,7 @@ internal sealed class KeelBridge : MonoBehaviour
 	private object? box;
 	private object? context;
 	private bool cancelled;
+	private bool subscribedNow;
 
 	/// <summary>Called by the loader once its folder is switched on. Never throws.</summary>
 	internal static void Begin()
@@ -83,26 +69,24 @@ internal sealed class KeelBridge : MonoBehaviour
 		}
 	}
 
-	private void Start() => StartCoroutine(OfferWhenMenuIsUp());
-
-	private IEnumerator OfferWhenMenuIsUp()
+	private IEnumerator Start()
 	{
 		// The settled main menu: after the load screen and its questions, so the box does not land behind them.
 		Log.LogInfo("Waiting for the main menu to offer the switch.");
 		float stable = 0f, waited = 0f;
-		bool told = false;
+		bool loggedDelay = false;
 		while (stable < 2f) {
 			stable = OnMainMenu() ? stable + Time.unscaledDeltaTime : 0f;
 			waited += Time.unscaledDeltaTime;
-			if (!told && waited > 300f) {
-				told = true;
+			if (!loggedDelay && waited > 300f) {
+				loggedDelay = true;
 				Log.LogWarning("No main menu after five minutes; still waiting to offer the switch.");
 			}
 			yield return null;
 		}
 		Log.LogInfo("Main menu is up.");
 		try {
-			Show(OfferText, "Switch to Keel", Switch, "Not now", () => Log.LogInfo("Not now: Anchor Chain stays this time."), withTick: true);
+			Show(OfferText, "Switch to Keel", () => StartCoroutine(SwitchSteps()), "Not now", () => Log.LogInfo("Not now: Anchor Chain stays this time."), withTick: true);
 			Log.LogInfo("Switch offer shown.");
 		}
 		catch (Exception e) {
@@ -130,24 +114,26 @@ internal sealed class KeelBridge : MonoBehaviour
 		!UnityEngine.SceneManagement.SceneManager.GetSceneByName("mission").isLoaded &&
 		!UnityEngine.SceneManagement.SceneManager.GetSceneByName("linear-campaign").isLoaded;
 
-	// ---- the game's message box ----
-
 	// The game's message box class is internal: built and filled by name (the same names on every 0.9 build).
 	[MethodImpl(MethodImplOptions.NoInlining)]
-	private void Show(string message, string okLabel, Action ok, string? cancelLabel = null, Action? cancel = null, bool withTick = false)
+	private void Show(string message, string okLabel, Action? ok = null, string? cancelLabel = null, Action? cancel = null, bool withTick = false)
 	{
 		CloseBox();
 		Type type = typeof(MessageBoxType).Assembly.GetType("SeapowerUI.ViewModels.MessageBoxViewModel", true)!;
-		object b = Activator.CreateInstance(type, true)!;
-		void Set(string name, object? value) => type.GetProperty(name, Any)!.SetValue(b, value);
+		object model = Activator.CreateInstance(type, true)!;
+		void Set(string name, object? value) => type.GetProperty(name, Any)!.SetValue(model, value);
+		DelegateCommand Dismiss(Action? action) => new(_ => {
+			CloseBox();
+			if (action != null) { Run(action); }
+		});
 		Set("MessageBoxType", MessageBoxType.Info);
 		Set("Header", Header);
 		Set("Message", message);
 		Set("AcknowledgeCommandLabel", okLabel);
-		Set("AcknowledgeCommand", new DelegateCommand(_ => { CloseBox(); Run(ok); }));
+		Set("AcknowledgeCommand", Dismiss(ok));
 		if (cancelLabel != null) {
 			Set("CancelCommandLabel", cancelLabel);
-			Set("CancelCommand", new DelegateCommand(_ => { CloseBox(); if (cancel != null) { Run(cancel); } }));
+			Set("CancelCommand", Dismiss(cancel));
 		}
 		DelegateCommand? tick = null;
 		if (withTick) {
@@ -157,12 +143,10 @@ internal sealed class KeelBridge : MonoBehaviour
 			Set("MiddleCommand", tick);
 		}
 		context = MainMenuView.Instance;
-		box = b;
-		WindowHostCommands.OpenWindowCommand.Execute(b, (Noesis.UIElement)context);
-		if (tick != null) { StartCoroutine(AddCheckBox(b, tick)); }
+		box = model;
+		WindowHostCommands.OpenWindowCommand.Execute(model, (Noesis.UIElement)context);
+		if (tick != null) { StartCoroutine(AddCheckBox(model, tick)); }
 	}
-
-	// ---- the check box ----
 
 	// The box's view is drawn a frame or two after it opens: look for its tick button for up to a second.
 	private IEnumerator AddCheckBox(object shown, DelegateCommand tick)
@@ -218,19 +202,14 @@ internal sealed class KeelBridge : MonoBehaviour
 		return null;
 	}
 
-	private static string TickLabel() => showOffer is { Value: false } ? TickOn : TickOff;
+	private static string TickLabel() => $"[{(showOffer is { Value: false } ? 'x' : ' ')}] Don't show this again";
 
 	// Saved at once (BepInEx writes the file when the value is set), so closing the box with its X counts too. The box stays open.
 	private void ToggleTick()
 	{
 		if (showOffer == null) { return; }
 		SetShow(!showOffer.Value);
-		try {
-			box?.GetType().GetProperty("MiddleCommandLabel", Any)?.SetValue(box, TickLabel());
-		}
-		catch (Exception) {
-			// the box is gone; the setting is saved all the same
-		}
+		SetBoxProperty("MiddleCommandLabel", TickLabel());
 	}
 
 	private static void SetShow(bool show)
@@ -240,8 +219,7 @@ internal sealed class KeelBridge : MonoBehaviour
 		Log.LogInfo(show ? "Tick taken off: the offer comes again at the next start." : "Ticked: the offer will not be shown again.");
 	}
 
-	private const System.Reflection.BindingFlags Any =
-		System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+	private const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
 	private void CloseBox()
 	{
@@ -258,10 +236,10 @@ internal sealed class KeelBridge : MonoBehaviour
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private void CloseCore() => WindowHostCommands.CloseWindowCommand.Execute(box, (Noesis.UIElement)context!);
 
-	private void SetText(string message)
+	private void SetBoxProperty(string name, string value)
 	{
 		try {
-			box?.GetType().GetProperty("Message", Any)?.SetValue(box, message);
+			box?.GetType().GetProperty(name, Any)?.SetValue(box, value);
 		}
 		catch (Exception) {
 			// the box is gone; the log still says what happens
@@ -278,11 +256,7 @@ internal sealed class KeelBridge : MonoBehaviour
 		}
 	}
 
-	// ---- the switch ----
-
 	private enum Download { NotStarted, Running, Done, Broken }
-
-	private void Switch() => StartCoroutine(SwitchSteps());
 
 	// Download, install, switch on, offer the restart. Each step that fails says why and leaves the game as it was before the click.
 	private IEnumerator SwitchSteps()
@@ -297,15 +271,11 @@ internal sealed class KeelBridge : MonoBehaviour
 		if (cancelled || folder == null) { yield break; }
 
 		Log.LogInfo($"Keel is on disk: {folder}");
-		var placed = new Placed();
 		try {
-			// Files first, the mod list last: the game only loads Keel once its stub is there, so a half switch never lists it.
-			Install(folder, placed);
-			SwitchOn(folder);
+			Install(folder);
 		}
 		catch (Exception e) {
 			Log.LogError($"Keel could not be installed: {e}");
-			placed.Undo();
 			Show($"R.A.T.S. Keel is downloaded but could not be installed: {Reason(e)}.\n\n" +
 			     "• Nothing was changed: Anchor Chain keeps working\n" +
 			     "• Close the game and run KeelSetup.exe from Keel's Workshop folder instead",
@@ -318,8 +288,6 @@ internal sealed class KeelBridge : MonoBehaviour
 		     "• Later: Keel takes over the next time you start the game",
 		     "Restart", () => StartCoroutine(Restart(folder)), "Later", () => Log.LogInfo("Restart later."));
 	}
-
-	private bool subscribedNow;     // this click subscribed to Keel, so a cancel takes the subscription back
 
 	private void CancelDownload()
 	{
@@ -357,7 +325,7 @@ internal sealed class KeelBridge : MonoBehaviour
 			yield return new WaitForSecondsRealtime(0.5f);
 			try {
 				state = State(out folder);
-				if (state == Download.Running) { SetText($"Getting R.A.T.S. Keel from the Steam Workshop ... {Progress()}"); }
+				if (state == Download.Running) { SetBoxProperty("Message", $"Getting R.A.T.S. Keel from the Steam Workshop ... {Progress()}"); }
 				// Steam calls the item installed once its files are written: a folder without the stub a while later is a broken copy.
 				if (state != Download.Broken) { brokenSince = -1f; }
 				else if (brokenSince < 0f) { brokenSince = Time.realtimeSinceStartup; }
@@ -400,8 +368,7 @@ internal sealed class KeelBridge : MonoBehaviour
 			return Download.Running;
 		}
 		string? path = Steam.InstallFolder();
-		if (path == null || !Directory.Exists(path)) { return Download.Broken; }
-		if (!File.Exists(Path.Combine(path, StubFolder, StubName))) { return Download.Broken; }
+		if (path == null || !File.Exists(Path.Combine(path, StubFolder, StubName))) { return Download.Broken; }
 		folder = path;
 		return Download.Done;
 	}
@@ -425,7 +392,7 @@ internal sealed class KeelBridge : MonoBehaviour
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static string Progress()
 	{
-		object?[] args = { Steam.Item(), 0UL, 0UL };
+		object?[] args = [Steam.Item(), 0UL, 0UL];
 		return Steam.Call("GetItemDownloadInfo", args) is true && args[2] is ulong total && total > 0 && args[1] is ulong done
 			? $"{done * 100 / total} %"
 			: "";
@@ -438,78 +405,14 @@ internal sealed class KeelBridge : MonoBehaviour
 		_ => e.Message,
 	};
 
-	// ---- install, undone on failure ----
-
-	/// <summary>What one install placed, so a failed switch can take it back.</summary>
-	private sealed class Placed
+	private static void Install(string folder)
 	{
-		internal readonly List<string> Created = new();
-		internal readonly List<(string File, string Backup)> Replaced = new();
-		internal string? Manifest;
-		internal string[]? ManifestBefore;     // null: the file was not there
-
-		internal void Undo()
-		{
-			foreach (string file in Created) { Try(() => File.Delete(file)); }
-			foreach ((string file, string backup) in Replaced) { Try(() => File.Copy(backup, file, true)); }
-			if (Manifest != null) {
-				Try(() => {
-					if (ManifestBefore == null) { File.Delete(Manifest); }
-					else { File.WriteAllLines(Manifest, ManifestBefore); }
-				});
-			}
-			Log.LogInfo("The half install was taken back.");
-		}
-
-		private static void Try(Action step)
-		{
-			try {
-				step();
-			}
-			catch (Exception e) {
-				Log.LogWarning($"Could not take a step back: {e.Message}");
-			}
-		}
-	}
-
-	/// <summary>What KeelSetup.exe does when BepInEx is there already: Keel's stub and takeover patcher, recorded for its Restore.</summary>
-	private static void Install(string keelFolder, Placed placed)
-	{
-		string manifest = Path.Combine(Paths.GameRootPath, ManifestName);
-		placed.Manifest = manifest;
-		placed.ManifestBefore = File.Exists(manifest) ? File.ReadAllLines(manifest) : null;
-		List<string> lines = placed.ManifestBefore?.Where(l => l.Length > 0).ToList() ?? new List<string>();
-		void Note(string entry)
-		{
-			if (!lines.Contains(entry)) { lines.Add(entry); }
-			File.WriteAllLines(manifest, lines);     // after every step: an interrupted install can still be undone by KeelSetup
-		}
-
-		Directory.CreateDirectory(Paths.PluginPath);
-		Place(Path.Combine(keelFolder, StubFolder, StubName), Path.Combine(Paths.PluginPath, StubName), @"BepInEx\plugins\", Note, placed);
-
-		string patcherSource = Path.Combine(keelFolder, PatcherName);
-		if (File.Exists(patcherSource)) {
-			Directory.CreateDirectory(Paths.PatcherPluginPath);
-			Place(patcherSource, Path.Combine(Paths.PatcherPluginPath, PatcherName), @"BepInEx\patchers\", Note, placed);
-		}
-		Log.LogInfo("Keel's stub and takeover patcher are in BepInEx (recorded in keel-setup.txt).");
-	}
-
-	// A file already there with the same bytes is left alone: BepInEx holds a loaded patcher open, and copying over it would fail.
-	private static void Place(string source, string target, string folderName, Action<string> note, Placed placed)
-	{
-		if (File.Exists(target)) {
-			if (File.ReadAllBytes(target).SequenceEqual(File.ReadAllBytes(source))) { return; }
-			string backup = Path.Combine(Path.GetTempPath(), $"AnchorChain-{Guid.NewGuid():N}-{Path.GetFileName(target)}");
-			File.Copy(target, backup);
-			placed.Replaced.Add((target, backup));
-			File.Copy(source, target, true);
-			return;
-		}
-		note("created\t" + folderName + Path.GetFileName(target));
-		placed.Created.Add(target);
-		File.Copy(source, target);
+		KeelInstall.Apply(Path.Combine(Paths.GameRootPath, ManifestName), files => {
+			files.Place(Path.Combine(folder, StubFolder, StubName), Paths.PluginPath, @"BepInEx\plugins");
+			string patcher = Path.Combine(folder, PatcherName);
+			if (File.Exists(patcher)) { files.Place(patcher, Paths.PatcherPluginPath, @"BepInEx\patchers"); }
+			SwitchOn(folder);
+		}, error => Log.LogWarning($"Could not roll back the Keel install: {error.Message}"));
 	}
 
 	/// <summary>Keel switched on in the game's mod list, at its top, and the list saved the way the Mods menu does it.</summary>
@@ -565,7 +468,7 @@ internal sealed class KeelBridge : MonoBehaviour
 		string? failure = null;
 		try {
 			if (!File.Exists(watcher)) { throw new FileNotFoundException($"{WatcherName} is not in Keel's folder"); }
-			Process self = Process.GetCurrentProcess();
+			using Process self = Process.GetCurrentProcess();
 			string exe = self.MainModule?.FileName ?? "";
 			started = Process.Start(new ProcessStartInfo(watcher, $"--relaunch {self.Id} \"{exe}\"") { UseShellExecute = false, CreateNoWindow = true });
 			if (started == null) { throw new InvalidOperationException($"{WatcherName} did not start"); }
@@ -585,7 +488,7 @@ internal sealed class KeelBridge : MonoBehaviour
 		started?.Dispose();
 		if (failure != null) {
 			Log.LogWarning($"Could not restart the game by itself: {failure}");
-			Show("The game could not restart by itself.\n\n• Close it and start it again: Keel takes over then", "OK", () => { });
+			Show("The game could not restart by itself.\n\n• Close it and start it again: Keel takes over then", "OK");
 			yield break;
 		}
 		Log.LogInfo("Restarting the game for Keel.");
@@ -598,7 +501,7 @@ internal sealed class KeelBridge : MonoBehaviour
 	{
 		internal const uint Subscribed = 1, Installed = 4, NeedsUpdate = 8, Downloading = 16, DownloadPending = 32;  // EItemState
 
-		private static readonly System.Reflection.Assembly Lib =
+		private static readonly Assembly Lib =
 			AppDomain.CurrentDomain.GetAssemblies().First(a => a.GetName().Name == "com.rlabrecque.steamworks.net");
 
 		private static Type Type(string name) => Lib.GetType("Steamworks." + name, true)!;
@@ -616,7 +519,7 @@ internal sealed class KeelBridge : MonoBehaviour
 
 		internal static string? InstallFolder()
 		{
-			object?[] args = { Item(), 0UL, null, 1024u, 0u };
+			object?[] args = [Item(), 0UL, null, 1024u, 0u];
 			return Call("GetItemInstallInfo", args) is true ? args[2] as string : null;
 		}
 
