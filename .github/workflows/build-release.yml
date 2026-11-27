@@ -43,6 +43,9 @@ jobs:
       - name: Build AnchorChain and preloader
         run: dotnet build AnchorChain/AnchorChain.csproj --configuration Release
 
+      - name: Check Keel install rollback
+        run: dotnet run --file tests/KeelInstallChecks.cs
+
       - name: Package release assets
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/V')
         run: |
