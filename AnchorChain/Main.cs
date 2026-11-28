@@ -28,8 +28,7 @@ public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 			Logger.LogInfo("AnchorChain's directory is not selected; skipping initialization.");
 			return;
 		}
-		// Anchor Chain continues as R.A.T.S. Keel: offer the switch on the main menu (KeelBridge.cs). It never stops the load below.
-		KeelBridge.Begin();
+		// The Keel migration notice is temporarily disabled while its mouse input is investigated.
 
 		Dictionary<string, (ACPlugin, IAnchorChainMod)> recognizedPlugins = new();
 		IniHandler userIni = new();
