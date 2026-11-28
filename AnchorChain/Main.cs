@@ -5,7 +5,7 @@ using System.Reflection;
 namespace AnchorChain;
 
 
-[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.3.0")]
+[BepInPlugin("io.github.seapower_modders.anchorchain", "AnchorChain", "1.3.2")]
 public class AnchorChainLoader : BaseUnityPlugin, Preloader.IPluginLoader
 {
 	private static Dictionary<string, HashSet<ACPlugin>> _postLoadsCache = new();

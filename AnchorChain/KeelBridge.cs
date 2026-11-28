@@ -181,7 +181,7 @@ internal sealed class KeelBridge : MonoBehaviour
 		Log.LogInfo("No check box in the offer (the box's layout differs): the tick button stays.");
 	}
 
-	/// <summary>Puts a check box where the tick button is and hides that button. False while the button is not drawn yet.</summary>
+	/// <summary>Replaces the tick button with a check box before the action buttons. False until the buttons are drawn.</summary>
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private bool PutCheckBox(DelegateCommand tick)
 	{
@@ -197,8 +197,9 @@ internal sealed class KeelBridge : MonoBehaviour
 			Margin = new Noesis.Thickness(0, 0, 16, 0),
 		};
 		if (button.Foreground != null) { check.Foreground = button.Foreground; }
-		check.Click += (_, _) => Run(() => SetShow(check.IsChecked != true));
-		row.Children.Insert(row.Children.IndexOf(button), check);
+		check.Checked += (_, _) => Run(() => SetShow(false));
+		check.Unchecked += (_, _) => Run(() => SetShow(true));
+		row.Children.Insert(0, check);
 		button.Visibility = Noesis.Visibility.Collapsed;
 		Log.LogInfo("Check box added to the offer.");
 		return true;
