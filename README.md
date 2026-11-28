@@ -4,7 +4,7 @@
 
 ## Unreleased
 
-Anchor Chain 1.3.2 moves "Don't show this again" before the action buttons in the Keel switch offer and saves the preference when the checkbox changes.
+Anchor Chain 1.3.2 gives the Keel switch offer a "Don't show this again" button that dismisses the notice and saves the preference for future launches.
 
 ## Build and release automation
 

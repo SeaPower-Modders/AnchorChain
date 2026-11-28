@@ -19,9 +19,7 @@ namespace AnchorChain;
 /// BepInEx\plugins and its takeover patcher into BepInEx\patchers (recorded in keel-setup.txt, so Keel's setup can undo it),
 /// then switches Keel on at the top of the game's mod list and offers a restart. A step that fails takes the others back.</item>
 /// <item>Not now: nothing changes; the box comes again at the next start.</item>
-/// <item>Don't show this again: a check box next to the buttons (the game's own check box style; where the box's layout
-/// differs, its middle button stands in as a tick). Ticked, the box stays away until ShowSwitchOffer is set back in Anchor
-/// Chain's config file.</item>
+/// <item>Don't show this again: dismisses the offer until ShowSwitchOffer is set back in Anchor Chain's config file.</item>
 /// </list>
 /// Anchor Chain itself loads every mod as before at this start. Nothing here can stop that: every step is caught, and a game
 /// build whose UI differs only loses the box. Players who have Keel already (its stub is in BepInEx\plugins) never see it.
@@ -38,8 +36,7 @@ internal sealed class KeelBridge : MonoBehaviour
 	private const float DownloadSeconds = 300f;
 	private const float BrokenSeconds = 15f;     // installed per Steam but no stub this long: a damaged copy, not a slow one
 	private const string ConfigName = "io.github.seapower_modders.anchorchain.cfg";
-	private const string TickOff = "[ ] Don't show this again";
-	private const string TickOn = "[x] Don't show this again";
+	private const string OptOutLabel = "Don't show this again";
 
 	private const string OfferText =
 		"Anchor Chain continues as R.A.T.S. Keel, made together with Anchor Chain's authors.\n\n" +
@@ -47,11 +44,10 @@ internal sealed class KeelBridge : MonoBehaviour
 		"• Keel provides more complex update checks and can detect which mods are most likely broken by an update.\n" +
 		"• Switch to Keel: subscribes to it, installs it and restarts the game.\n" +
 		"• Not now: defers this message to the next launch.\n" +
-		"• Don't show this again: tick it below, and this message will not appear.";
+		"• Don't show this again: dismisses this message and hides it on future launches.";
 
 	private static readonly ManualLogSource Log = BepInEx.Logging.Logger.CreateLogSource("Anchor Chain → Keel");
 	private static bool begun;
-	// Whether the offer is shown at all. The box's tick writes it; a player sets it back in the config file.
 	private static ConfigEntry<bool>? showOffer;
 
 	private object? box;
@@ -102,7 +98,7 @@ internal sealed class KeelBridge : MonoBehaviour
 		}
 		Log.LogInfo("Main menu is up.");
 		try {
-			Show(OfferText, "Switch to Keel", Switch, "Not now", () => Log.LogInfo("Not now: Anchor Chain stays this time."), withTick: true);
+			Show(OfferText, "Switch to Keel", Switch, "Not now", () => Log.LogInfo("Not now: Anchor Chain stays this time."), withOptOut: true);
 			Log.LogInfo("Switch offer shown.");
 		}
 		catch (Exception e) {
@@ -134,7 +130,7 @@ internal sealed class KeelBridge : MonoBehaviour
 
 	// The game's message box class is internal: built and filled by name (the same names on every 0.9 build).
 	[MethodImpl(MethodImplOptions.NoInlining)]
-	private void Show(string message, string okLabel, Action ok, string? cancelLabel = null, Action? cancel = null, bool withTick = false)
+	private void Show(string message, string okLabel, Action ok, string? cancelLabel = null, Action? cancel = null, bool withOptOut = false)
 	{
 		CloseBox();
 		Type type = typeof(MessageBoxType).Assembly.GetType("SeapowerUI.ViewModels.MessageBoxViewModel", true)!;
@@ -149,96 +145,67 @@ internal sealed class KeelBridge : MonoBehaviour
 			Set("CancelCommandLabel", cancelLabel);
 			Set("CancelCommand", new DelegateCommand(_ => { CloseBox(); if (cancel != null) { Run(cancel); } }));
 		}
-		DelegateCommand? tick = null;
-		if (withTick) {
-			// The game's message box has three buttons and no check box: the middle one is the tick until a real check box replaces it.
-			tick = new DelegateCommand(_ => Run(ToggleTick));
-			Set("MiddleCommandLabel", TickLabel());
-			Set("MiddleCommand", tick);
+		DelegateCommand? optOut = null;
+		if (withOptOut) {
+			optOut = new DelegateCommand(_ => Run(DisableOffer));
+			Set("MiddleCommandLabel", OptOutLabel);
+			Set("MiddleCommand", optOut);
 		}
 		context = MainMenuView.Instance;
 		box = b;
 		WindowHostCommands.OpenWindowCommand.Execute(b, (Noesis.UIElement)context);
-		if (tick != null) { StartCoroutine(AddCheckBox(b, tick)); }
+		if (optOut != null) { StartCoroutine(MoveOptOutWhenDrawn(b, optOut)); }
 	}
 
-	// ---- the check box ----
+	private void DisableOffer()
+	{
+		if (showOffer == null) { return; }
+		showOffer.Value = false;
+		CloseBox();
+		Log.LogInfo("The switch offer was turned off.");
+	}
 
-	// The box's view is drawn a frame or two after it opens: look for its tick button for up to a second.
-	private IEnumerator AddCheckBox(object shown, DelegateCommand tick)
+	// Keep the action wired to the middle command so the native cancel action still means "Not now".
+	private IEnumerator MoveOptOutWhenDrawn(object shown, DelegateCommand optOut)
 	{
 		for (float until = Time.realtimeSinceStartup + 1f; Time.realtimeSinceStartup < until; ) {
 			yield return null;
-			if (box != shown) { yield break; }    // closed or replaced meanwhile
+			if (box != shown) { yield break; }
 			try {
-				if (PutCheckBox(tick)) { yield break; }
+				if (MoveOptOutFirst(optOut)) { yield break; }
 			}
 			catch (Exception e) {
-				Log.LogInfo($"No check box in the offer, the tick button stays: {e.Message}");
+				Log.LogInfo($"Could not move the opt-out button: {e.Message}");
 				yield break;
 			}
 		}
-		Log.LogInfo("No check box in the offer (the box's layout differs): the tick button stays.");
 	}
 
-	/// <summary>Replaces the tick button with a check box before the action buttons. False until the buttons are drawn.</summary>
 	[MethodImpl(MethodImplOptions.NoInlining)]
-	private bool PutCheckBox(DelegateCommand tick)
+	private bool MoveOptOutFirst(DelegateCommand optOut)
 	{
 		Noesis.DependencyObject root = (Noesis.DependencyObject)context!;
 		for (Noesis.DependencyObject? up = root; up != null; up = Noesis.VisualTreeHelper.GetParent(up)) { root = up; }
-		if (FindButton(root, tick) is not { } button) { return false; }
-		if (Noesis.VisualTreeHelper.GetParent(button) is not Noesis.Panel row) { throw new InvalidOperationException("the buttons sit in no panel"); }
-
-		var check = new Noesis.CheckBox {
-			Content = "Don't show this again",
-			IsChecked = showOffer is { Value: false },
-			VerticalAlignment = Noesis.VerticalAlignment.Center,
-			Margin = new Noesis.Thickness(0, 0, 16, 0),
-		};
-		if (button.Foreground != null) { check.Foreground = button.Foreground; }
-		check.Checked += (_, _) => Run(() => SetShow(false));
-		check.Unchecked += (_, _) => Run(() => SetShow(true));
-		row.Children.Insert(0, check);
-		button.Visibility = Noesis.Visibility.Collapsed;
-		Log.LogInfo("Check box added to the offer.");
+		if (FindButton(root, optOut) is not { } button) { return false; }
+		if (Noesis.VisualTreeHelper.GetParent(button) is Noesis.StackPanel row && row.Children.IndexOf(button) > 0) {
+			row.Children.Remove(button);
+			row.Children.Insert(0, button);
+		}
 		return true;
 	}
 
 	// Breadth first through the whole UI: the window host is not below the main menu view. Bounded, so a large tree cannot stall a frame.
-	private static Noesis.Button? FindButton(Noesis.DependencyObject root, DelegateCommand tick)
+	private static Noesis.Button? FindButton(Noesis.DependencyObject root, DelegateCommand command)
 	{
 		var queue = new Queue<Noesis.DependencyObject>();
 		queue.Enqueue(root);
 		for (int seen = 0; queue.Count > 0 && seen < 20000; seen++) {
 			Noesis.DependencyObject node = queue.Dequeue();
-			if (node is Noesis.Button b && ReferenceEquals(b.Command, tick)) { return b; }
+			if (node is Noesis.Button b && ReferenceEquals(b.Command, command)) { return b; }
 			int n = Noesis.VisualTreeHelper.GetChildrenCount(node);
 			for (int i = 0; i < n; i++) { queue.Enqueue(Noesis.VisualTreeHelper.GetChild(node, i)); }
 		}
 		return null;
-	}
-
-	private static string TickLabel() => showOffer is { Value: false } ? TickOn : TickOff;
-
-	// Saved at once (BepInEx writes the file when the value is set), so closing the box with its X counts too. The box stays open.
-	private void ToggleTick()
-	{
-		if (showOffer == null) { return; }
-		SetShow(!showOffer.Value);
-		try {
-			box?.GetType().GetProperty("MiddleCommandLabel", Any)?.SetValue(box, TickLabel());
-		}
-		catch (Exception) {
-			// the box is gone; the setting is saved all the same
-		}
-	}
-
-	private static void SetShow(bool show)
-	{
-		if (showOffer == null || showOffer.Value == show) { return; }
-		showOffer.Value = show;
-		Log.LogInfo(show ? "Tick taken off: the offer comes again at the next start." : "Ticked: the offer will not be shown again.");
 	}
 
 	private const System.Reflection.BindingFlags Any =
